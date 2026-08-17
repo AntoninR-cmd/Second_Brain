@@ -4,31 +4,17 @@ import { Link, useLocation } from "react-router-dom";
 
 import { getDashboard, getHealth, getReadableError } from "../api/client";
 import type { SourceDetail } from "../api/types";
+import {
+  formatDate,
+  getSourceTypeLabel,
+  textExcerpt,
+} from "../utils/sourcePresentation";
 
 interface DashboardLocationState {
   flash?: string;
 }
 
-const dateFormatter = new Intl.DateTimeFormat("fr-FR", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
-
-function formatDate(value: string): string {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? "Date inconnue"
-    : dateFormatter.format(date);
-}
-
-function textExcerpt(value: string): string {
-  const normalized = value.replace(/\s+/g, " ").trim();
-  return normalized.length > 180
-    ? `${normalized.slice(0, 177).trimEnd()}…`
-    : normalized;
-}
-
-function RecentNote({ note }: { note: SourceDetail }) {
+function RecentSource({ source }: { source: SourceDetail }) {
   return (
     <li className="recent-note">
       <div className="note-icon" aria-hidden="true">
@@ -37,14 +23,21 @@ function RecentNote({ note }: { note: SourceDetail }) {
         </svg>
       </div>
       <div className="recent-note-content">
-        <h3>{note.title}</h3>
-        <p className="note-excerpt">{textExcerpt(note.raw_text)}</p>
+        <span className={`source-type type-${source.type}`}>
+          {getSourceTypeLabel(source.type)}
+        </span>
+        <h3>
+          <Link className="source-title-link" to={`/sources/${source.id}`}>
+            {source.title}
+          </Link>
+        </h3>
+        <p className="note-excerpt">{textExcerpt(source.raw_text)}</p>
         <p className="note-metadata">
-          {note.author ? `${note.author} · ` : ""}
-          Ajoutée le {formatDate(note.created_at)}
+          {source.author ? `${source.author} · ` : ""}
+          Ajoutée le {formatDate(source.created_at)}
         </p>
       </div>
-      <span className="ready-label">Enregistrée</span>
+      <span className="ready-label">Prête</span>
     </li>
   );
 }
@@ -75,12 +68,12 @@ export function DashboardPage() {
           <p className="eyebrow">Vue d’ensemble</p>
           <h1>Dashboard</h1>
           <p className="page-introduction">
-            Retrouvez les notes conservées dans votre Second Brain.
+            Retrouvez les sources conservées dans votre Second Brain.
           </p>
         </div>
         <Link className="button button-primary" to="/ajouter">
           <span aria-hidden="true">＋</span>
-          Ajouter une note
+          Ajouter une source
         </Link>
       </header>
 
@@ -102,7 +95,7 @@ export function DashboardPage() {
       <section className="stat-grid" aria-label="État du Second Brain">
         <article className="stat-card">
           <div className="stat-card-heading">
-            <span>Notes enregistrées</span>
+            <span>Sources enregistrées</span>
             <span className="stat-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
                 <path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm8 2v5h4L14 4Z" />
@@ -164,7 +157,7 @@ export function DashboardPage() {
       <section className="panel recent-panel" aria-labelledby="recent-title">
         <div className="panel-header">
           <div>
-            <h2 id="recent-title">Notes récentes</h2>
+            <h2 id="recent-title">Sources récentes</h2>
             <p>Les cinq derniers ajouts enregistrés.</p>
           </div>
         </div>
@@ -172,11 +165,11 @@ export function DashboardPage() {
         {dashboardQuery.isPending ? (
           <div className="loading-state" role="status">
             <span className="spinner" aria-hidden="true" />
-            Chargement des notes…
+            Chargement des sources…
           </div>
         ) : dashboardQuery.isError ? (
           <div className="empty-state error-state" role="alert">
-            <h3>Impossible de charger les notes</h3>
+            <h3>Impossible de charger les sources</h3>
             <p>{getReadableError(dashboardQuery.error)}</p>
             <button
               className="button button-secondary"
@@ -194,15 +187,15 @@ export function DashboardPage() {
               </svg>
             </div>
             <h3>Votre Second Brain est vide</h3>
-            <p>Ajoutez une première note en texte libre pour commencer.</p>
+            <p>Ajoutez une note ou importez un fichier SRT ou TXT pour commencer.</p>
             <Link className="button button-secondary" to="/ajouter">
-              Ajouter une note
+              Ajouter une source
             </Link>
           </div>
         ) : (
           <ul className="recent-list">
-            {dashboardQuery.data.recent_sources.map((note) => (
-              <RecentNote key={note.id} note={note} />
+            {dashboardQuery.data.recent_sources.map((source) => (
+              <RecentSource key={source.id} source={source} />
             ))}
           </ul>
         )}

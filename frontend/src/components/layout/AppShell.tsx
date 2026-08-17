@@ -16,6 +16,14 @@ function AddIcon() {
   );
 }
 
+function SourcesIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 3a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h1v1a1 1 0 0 0 1.55.83L10 19h9a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H5Zm2 5a1 1 0 0 1 1-1h8a1 1 0 1 1 0 2H8a1 1 0 0 1-1-1Zm1 3h8a1 1 0 1 1 0 2H8a1 1 0 1 1 0-2Zm-1 5a1 1 0 0 1 1-1h5a1 1 0 1 1 0 2H8a1 1 0 0 1-1-1Z" />
+    </svg>
+  );
+}
+
 export function AppShell() {
   return (
     <div className="app-shell">
@@ -30,7 +38,7 @@ export function AppShell() {
           </span>
           <span>
             <strong>Second Brain</strong>
-            <small>Notes locales</small>
+            <small>Sources locales</small>
           </span>
         </NavLink>
 
@@ -44,6 +52,15 @@ export function AppShell() {
           >
             <DashboardIcon />
             <span>Dashboard</span>
+          </NavLink>
+          <NavLink
+            to="/sources"
+            className={({ isActive }) =>
+              `navigation-link${isActive ? " is-active" : ""}`
+            }
+          >
+            <SourcesIcon />
+            <span>Sources</span>
           </NavLink>
           <NavLink
             to="/ajouter"

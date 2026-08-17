@@ -1,8 +1,11 @@
 import type {
   DashboardResponse,
+  FileSourceInput,
   HealthResponse,
   ManualSourceInput,
   SourceDetail,
+  SourceListResponse,
+  SourceSegmentListResponse,
 } from "./types";
 
 const API_PREFIX = "/api/v1";
@@ -78,6 +81,53 @@ export function createManualSource(
     },
     body: JSON.stringify(input),
   });
+}
+
+export function uploadSource(input: FileSourceInput): Promise<SourceDetail> {
+  const formData = new FormData();
+  formData.append("file", input.file);
+
+  if (input.title) {
+    formData.append("title", input.title);
+  }
+
+  if (input.author) {
+    formData.append("author", input.author);
+  }
+
+  return request<SourceDetail>("/sources/upload", {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export function getSources(cursor?: string | null): Promise<SourceListResponse> {
+  const parameters = new URLSearchParams({ limit: "50" });
+
+  if (cursor) {
+    parameters.set("cursor", cursor);
+  }
+
+  return request<SourceListResponse>(`/sources?${parameters.toString()}`);
+}
+
+export function getSource(sourceId: string): Promise<SourceDetail> {
+  return request<SourceDetail>(`/sources/${encodeURIComponent(sourceId)}`);
+}
+
+export function getSourceSegments(
+  sourceId: string,
+  cursor?: number | null,
+): Promise<SourceSegmentListResponse> {
+  const parameters = new URLSearchParams({ limit: "100" });
+
+  if (cursor !== undefined && cursor !== null) {
+    parameters.set("cursor", cursor.toString());
+  }
+
+  return request<SourceSegmentListResponse>(
+    `/sources/${encodeURIComponent(sourceId)}/segments?${parameters.toString()}`,
+  );
 }
 
 export function getReadableError(error: unknown): string {
