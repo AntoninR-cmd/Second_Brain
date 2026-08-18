@@ -1,4 +1,8 @@
-import type { ProcessingStatus, SourceType } from "../api/types";
+import type {
+  AnalysisStatus,
+  ProcessingStatus,
+  SourceType,
+} from "../api/types";
 
 const dateFormatter = new Intl.DateTimeFormat("fr-FR", {
   dateStyle: "medium",
@@ -13,6 +17,14 @@ const SOURCE_TYPE_LABELS: Record<SourceType, string> = {
 
 const PROCESSING_STATUS_LABELS: Record<ProcessingStatus, string> = {
   ready: "Prête",
+};
+
+const ANALYSIS_STATUS_LABELS: Record<AnalysisStatus, string> = {
+  not_analyzed: "Non analysée",
+  queued: "En attente",
+  processing: "Analyse en cours",
+  analyzed: "Analysée",
+  error: "Erreur",
 };
 
 export function formatDate(value: string): string {
@@ -38,6 +50,10 @@ export function formatSrtTimestamp(milliseconds: number): string {
 
 export function getProcessingStatusLabel(status: ProcessingStatus): string {
   return PROCESSING_STATUS_LABELS[status];
+}
+
+export function getAnalysisStatusLabel(status: AnalysisStatus): string {
+  return ANALYSIS_STATUS_LABELS[status];
 }
 
 export function getSourceTypeLabel(type: SourceType): string {

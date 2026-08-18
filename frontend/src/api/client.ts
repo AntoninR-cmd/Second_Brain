@@ -1,11 +1,15 @@
 import type {
+  AnalysisJob,
   DashboardResponse,
   FileSourceInput,
   HealthResponse,
+  KnowledgeNodeDetail,
+  KnowledgeNodeListResponse,
   ManualSourceInput,
   SourceDetail,
   SourceListResponse,
   SourceSegmentListResponse,
+  SystemReadinessResponse,
 } from "./types";
 
 const API_PREFIX = "/api/v1";
@@ -65,6 +69,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function getHealth(): Promise<HealthResponse> {
   return request<HealthResponse>("/system/health");
+}
+
+export function getSystemReadiness(): Promise<SystemReadinessResponse> {
+  return request<SystemReadinessResponse>("/system/readiness");
 }
 
 export function getDashboard(): Promise<DashboardResponse> {
@@ -128,6 +136,40 @@ export function getSourceSegments(
   return request<SourceSegmentListResponse>(
     `/sources/${encodeURIComponent(sourceId)}/segments?${parameters.toString()}`,
   );
+}
+
+export function analyzeSource(sourceId: string): Promise<AnalysisJob> {
+  return request<AnalysisJob>(
+    `/sources/${encodeURIComponent(sourceId)}/analyze`,
+    { method: "POST" },
+  );
+}
+
+export function getSourceAnalysis(sourceId: string): Promise<AnalysisJob> {
+  return request<AnalysisJob>(
+    `/sources/${encodeURIComponent(sourceId)}/analysis`,
+  );
+}
+
+export function getSourceKnowledgeNodes(
+  sourceId: string,
+  cursor?: string | null,
+): Promise<KnowledgeNodeListResponse> {
+  const parameters = new URLSearchParams({ limit: "100" });
+
+  if (cursor) {
+    parameters.set("cursor", cursor);
+  }
+
+  return request<KnowledgeNodeListResponse>(
+    `/sources/${encodeURIComponent(sourceId)}/nodes?${parameters.toString()}`,
+  );
+}
+
+export function getKnowledgeNode(
+  nodeId: string,
+): Promise<KnowledgeNodeDetail> {
+  return request<KnowledgeNodeDetail>(`/nodes/${encodeURIComponent(nodeId)}`);
 }
 
 export function getReadableError(error: unknown): string {

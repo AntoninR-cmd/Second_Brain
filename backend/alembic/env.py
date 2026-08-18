@@ -6,7 +6,17 @@ from logging.config import fileConfig
 from alembic import context
 from second_brain.core.config import get_settings
 from second_brain.db.base import Base
-from second_brain.db.models import Source  # noqa: F401
+from second_brain.db.models import (  # noqa: F401
+    KnowledgeEvidence,
+    KnowledgeNode,
+    KnowledgeNodeTag,
+    ProcessingJob,
+    Source,
+    SourcePassage,
+    SourcePassageSegment,
+    SourceSegment,
+    Tag,
+)
 from second_brain.db.session import apply_sqlite_pragmas
 from sqlalchemy import event, pool
 from sqlalchemy.engine import Connection

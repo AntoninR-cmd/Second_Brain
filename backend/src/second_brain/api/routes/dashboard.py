@@ -13,8 +13,18 @@ router = APIRouter(tags=["dashboard"])
 async def dashboard(
     session: AsyncSession = Depends(get_session),
 ) -> DashboardResponse:
-    source_count, recent_sources = await dashboard_sources(session)
+    source_count, recent_sources, segment_counts, knowledge_counts = await dashboard_sources(
+        session
+    )
     return DashboardResponse(
         source_count=source_count,
-        recent_sources=[SourceDetail.model_validate(source) for source in recent_sources],
+        recent_sources=[
+            SourceDetail.model_validate(source).model_copy(
+                update={
+                    "segment_count": segment_counts.get(source.id, 0),
+                    "knowledge_count": knowledge_counts.get(source.id, 0),
+                }
+            )
+            for source in recent_sources
+        ],
     )

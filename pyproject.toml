@@ -11,18 +11,23 @@ requires-python = ">=3.10"
 dependencies = [
     "aiosqlite>=0.20,<1",
     "alembic>=1.16,<2",
+    "charset-normalizer>=3.4,<4",
     "fastapi>=0.115,<1",
+    "httpx2>=2,<3",
     "pydantic-settings>=2.7,<3",
+    "python-multipart>=0.0.20,<1",
     "sqlalchemy>=2.0,<3",
     "uvicorn[standard]>=0.34,<1",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "httpx2>=2,<3",
     "pytest>=8.3,<9",
     "ruff>=0.9,<1",
 ]
+
+[tool.setuptools.package-data]
+second_brain = ["llm/prompts/*.md"]
 
 [tool.setuptools.packages.find]
 where = ["backend/src"]

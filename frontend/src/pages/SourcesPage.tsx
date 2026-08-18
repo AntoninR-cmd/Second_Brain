@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { getReadableError, getSources } from "../api/client";
 import {
   formatDate,
+  getAnalysisStatusLabel,
   getProcessingStatusLabel,
   getSourceTypeLabel,
 } from "../utils/sourcePresentation";
@@ -111,9 +112,16 @@ export function SourcesPage() {
                       <td>{source.author ?? "—"}</td>
                       <td>{formatDate(source.created_at)}</td>
                       <td>
-                        <span className="ready-label">
-                          {getProcessingStatusLabel(source.processing_status)}
-                        </span>
+                        <div className="source-statuses">
+                          <span className="ready-label">
+                            {getProcessingStatusLabel(source.processing_status)}
+                          </span>
+                          <span
+                            className={`analysis-status analysis-status-${source.analysis_status}`}
+                          >
+                            IA : {getAnalysisStatusLabel(source.analysis_status)}
+                          </span>
+                        </div>
                       </td>
                     </tr>
                   ))}

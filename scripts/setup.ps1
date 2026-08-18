@@ -24,7 +24,7 @@ if (-not (Test-Path -LiteralPath $pythonPath)) {
 
 $pythonVersion = (& $pythonPath -c "import sys; print('.'.join(map(str, sys.version_info[:3])))").Trim()
 if (-not $pythonVersion.StartsWith('3.10.')) {
-    throw "La Phase 1 attend Python 3.10, mais le venv utilise Python $pythonVersion. Supprimez .venv puis relancez ce script avec Python 3.10 installe."
+    throw "Second Brain attend Python 3.10, mais le venv utilise Python $pythonVersion. Supprimez .venv puis relancez ce script avec Python 3.10 installe."
 }
 
 $nodeVersionText = (& node.exe --version).TrimStart('v')

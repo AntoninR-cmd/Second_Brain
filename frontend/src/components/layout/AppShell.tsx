@@ -24,6 +24,14 @@ function SourcesIcon() {
   );
 }
 
+function SettingsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm9-3h-1.35a7.8 7.8 0 0 0-.73-1.77l.96-.96a1 1 0 0 0 0-1.41l-1.74-1.74a1 1 0 0 0-1.41 0l-.96.96A7.8 7.8 0 0 0 14 4.35V3a1 1 0 0 0-1-1h-2a1 1 0 0 0-1 1v1.35a7.8 7.8 0 0 0-1.77.73l-.96-.96a1 1 0 0 0-1.41 0L4.12 5.86a1 1 0 0 0 0 1.41l.96.96A7.8 7.8 0 0 0 4.35 10H3a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h1.35c.16.63.41 1.22.73 1.77l-.96.96a1 1 0 0 0 0 1.41l1.74 1.74a1 1 0 0 0 1.41 0l.96-.96c.55.32 1.14.57 1.77.73V21a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-1.35a7.8 7.8 0 0 0 1.77-.73l.96.96a1 1 0 0 0 1.41 0l1.74-1.74a1 1 0 0 0 0-1.41l-.96-.96c.32-.55.57-1.14.73-1.77H21a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1Z" />
+    </svg>
+  );
+}
+
 export function AppShell() {
   return (
     <div className="app-shell">
@@ -70,6 +78,15 @@ export function AppShell() {
           >
             <AddIcon />
             <span>Ajouter</span>
+          </NavLink>
+          <NavLink
+            to="/parametres"
+            className={({ isActive }) =>
+              `navigation-link${isActive ? " is-active" : ""}`
+            }
+          >
+            <SettingsIcon />
+            <span>Paramètres</span>
           </NavLink>
         </nav>
 

@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from second_brain.db.models.source import ProcessingStatus, SourceType
+from second_brain.db.models.source import AnalysisStatus, ProcessingStatus, SourceType
 
 
 class ManualSourceCreate(BaseModel):
@@ -36,7 +36,9 @@ class SourceSummary(BaseModel):
     type: SourceType
     title: str
     author: str | None
+    original_filename: str | None
     processing_status: ProcessingStatus
+    analysis_status: AnalysisStatus
     created_at: datetime
     updated_at: datetime
 
@@ -49,9 +51,42 @@ class SourceSummary(BaseModel):
 
 
 class SourceDetail(SourceSummary):
+    original_file_path: str | None
+    file_sha256: str | None
     raw_text: str
+    segment_count: int = Field(default=0, ge=0)
+    summary: str | None
+    analysis_error: str | None
+    analysis_started_at: datetime | None
+    analysis_completed_at: datetime | None
+    knowledge_count: int = Field(default=0, ge=0)
+
+    @field_validator("analysis_started_at", "analysis_completed_at")
+    @classmethod
+    def force_optional_utc(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
 
 
 class SourceList(BaseModel):
     items: list[SourceSummary]
     next_cursor: UUID | None
+
+
+class SourceSegmentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    source_id: UUID
+    index: int
+    text: str
+    start_ms: int | None
+    end_ms: int | None
+
+
+class SourceSegmentList(BaseModel):
+    items: list[SourceSegmentOut]
+    next_cursor: int | None

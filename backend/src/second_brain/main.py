@@ -6,9 +6,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from second_brain.api.router import api_router
 from second_brain.core.config import Settings, get_settings
 from second_brain.core.lifecycle import lifespan
+from second_brain.llm.client import TextGenerator
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    text_generator: TextGenerator | None = None,
+    start_analysis_worker: bool = True,
+) -> FastAPI:
     selected_settings = settings or get_settings()
     application = FastAPI(
         title=selected_settings.app_name,
@@ -16,6 +22,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     application.state.settings = selected_settings
+    application.state.text_generator = text_generator
+    application.state.analysis_worker_enabled = start_analysis_worker
 
     origins = selected_settings.allowed_origin_list
     if origins:

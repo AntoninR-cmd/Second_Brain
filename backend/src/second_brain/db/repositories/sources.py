@@ -5,7 +5,9 @@ from uuid import UUID
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from second_brain.db.models.knowledge import KnowledgeNode
 from second_brain.db.models.source import ProcessingStatus, Source, SourceType
+from second_brain.db.models.source_segment import SourceSegment
 
 
 def derive_title(text: str) -> str:
@@ -46,6 +48,32 @@ async def get_source(session: AsyncSession, source_id: UUID) -> Source | None:
     return await session.get(Source, source_id)
 
 
+async def count_source_segments(session: AsyncSession, source_id: UUID) -> int:
+    count = await session.scalar(
+        select(func.count(SourceSegment.id)).where(SourceSegment.source_id == source_id)
+    )
+    return int(count or 0)
+
+
+async def list_source_segments(
+    session: AsyncSession,
+    *,
+    source_id: UUID,
+    limit: int,
+    cursor: int | None,
+) -> tuple[list[SourceSegment], int | None]:
+    statement = select(SourceSegment).where(SourceSegment.source_id == source_id)
+    if cursor is not None:
+        statement = statement.where(SourceSegment.index > cursor)
+    statement = statement.order_by(SourceSegment.index.asc())
+
+    rows = list((await session.scalars(statement.limit(limit + 1))).all())
+    has_more = len(rows) > limit
+    items = rows[:limit]
+    next_cursor = items[-1].index if has_more and items else None
+    return items, next_cursor
+
+
 async def list_sources(
     session: AsyncSession,
     *,
@@ -80,7 +108,7 @@ async def dashboard_sources(
     session: AsyncSession,
     *,
     recent_limit: int = 5,
-) -> tuple[int, list[Source]]:
+) -> tuple[int, list[Source], dict[UUID, int], dict[UUID, int]]:
     source_count = await session.scalar(select(func.count(Source.id)))
     recent = list(
         (
@@ -91,4 +119,20 @@ async def dashboard_sources(
             )
         ).all()
     )
-    return int(source_count or 0), recent
+    segment_counts: dict[UUID, int] = {}
+    knowledge_counts: dict[UUID, int] = {}
+    if recent:
+        source_ids = [source.id for source in recent]
+        count_rows = await session.execute(
+            select(SourceSegment.source_id, func.count(SourceSegment.id))
+            .where(SourceSegment.source_id.in_(source_ids))
+            .group_by(SourceSegment.source_id)
+        )
+        segment_counts = {source_id: int(count) for source_id, count in count_rows.all()}
+        knowledge_rows = await session.execute(
+            select(KnowledgeNode.source_id, func.count(KnowledgeNode.id))
+            .where(KnowledgeNode.source_id.in_(source_ids))
+            .group_by(KnowledgeNode.source_id)
+        )
+        knowledge_counts = {source_id: int(count) for source_id, count in knowledge_rows.all()}
+    return int(source_count or 0), recent, segment_counts, knowledge_counts
