@@ -48,6 +48,12 @@ class Settings(BaseSettings):
             "OLLAMA_GENERATION_MODEL", "SECOND_BRAIN_OLLAMA_GENERATION_MODEL"
         ),
     )
+    ollama_embedding_model: str = Field(
+        default="qwen3-embedding:0.6b",
+        validation_alias=AliasChoices(
+            "OLLAMA_EMBEDDING_MODEL", "SECOND_BRAIN_OLLAMA_EMBEDDING_MODEL"
+        ),
+    )
     ollama_request_timeout_seconds: float = Field(
         default=600,
         gt=0,
@@ -64,6 +70,15 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices(
             "OLLAMA_READINESS_TIMEOUT_SECONDS",
             "SECOND_BRAIN_OLLAMA_READINESS_TIMEOUT_SECONDS",
+        ),
+    )
+    ollama_embedding_timeout_seconds: float = Field(
+        default=600,
+        gt=0,
+        le=3600,
+        validation_alias=AliasChoices(
+            "OLLAMA_EMBEDDING_TIMEOUT_SECONDS",
+            "SECOND_BRAIN_OLLAMA_EMBEDDING_TIMEOUT_SECONDS",
         ),
     )
     ollama_num_ctx: int = Field(
@@ -163,6 +178,24 @@ class Settings(BaseSettings):
             "SECOND_BRAIN_EXTRACTION_MAX_KNOWLEDGE_PER_PASSAGE",
         ),
     )
+    embedding_batch_size: int = Field(
+        default=8,
+        ge=1,
+        le=64,
+        validation_alias=AliasChoices("EMBEDDING_BATCH_SIZE", "SECOND_BRAIN_EMBEDDING_BATCH_SIZE"),
+    )
+    semantic_search_top_k: int = Field(
+        default=5,
+        ge=1,
+        le=50,
+        validation_alias=AliasChoices(
+            "SEMANTIC_SEARCH_TOP_K", "SECOND_BRAIN_SEMANTIC_SEARCH_TOP_K"
+        ),
+    )
+    qdrant_path: Path = Field(
+        default=Path("qdrant"),
+        validation_alias=AliasChoices("QDRANT_PATH", "SECOND_BRAIN_QDRANT_PATH"),
+    )
     job_stale_heartbeat_seconds: int = Field(
         default=120,
         ge=10,
@@ -177,10 +210,13 @@ class Settings(BaseSettings):
     def validate_ai_configuration(self) -> Settings:
         self.ollama_base_url = self.ollama_base_url.strip().rstrip("/")
         self.ollama_generation_model = self.ollama_generation_model.strip()
+        self.ollama_embedding_model = self.ollama_embedding_model.strip()
         if not self.ollama_base_url.startswith(("http://", "https://")):
             raise ValueError("OLLAMA_BASE_URL doit utiliser http:// ou https://")
         if not self.ollama_generation_model:
             raise ValueError("OLLAMA_GENERATION_MODEL ne peut pas etre vide")
+        if not self.ollama_embedding_model:
+            raise ValueError("OLLAMA_EMBEDDING_MODEL ne peut pas etre vide")
         if self.chunk_target_tokens > self.chunk_max_tokens:
             raise ValueError("CHUNK_TARGET_TOKENS doit etre inferieur ou egal a CHUNK_MAX_TOKENS")
         return self
@@ -209,6 +245,22 @@ class Settings(BaseSettings):
         return f"sqlite+aiosqlite:///{database_path.as_posix()}"
 
     @property
+    def resolved_qdrant_path(self) -> Path:
+        """Resolve the derived vector index inside the configured data directory."""
+
+        configured = Path(os.path.expandvars(str(self.qdrant_path))).expanduser()
+        resolved = (
+            configured.resolve()
+            if configured.is_absolute()
+            else (self.resolved_data_dir / configured).resolve()
+        )
+        try:
+            resolved.relative_to(self.resolved_data_dir)
+        except ValueError as error:
+            raise ValueError("QDRANT_PATH doit rester dans SECOND_BRAIN_DATA_DIR") from error
+        return resolved
+
+    @property
     def allowed_origin_list(self) -> list[str]:
         raw_origins = self.allowed_origins.strip()
         if raw_origins.startswith("["):
@@ -229,6 +281,7 @@ class Settings(BaseSettings):
 
     def create_data_directory(self) -> None:
         self.resolved_data_dir.mkdir(parents=True, exist_ok=True)
+        self.resolved_qdrant_path.mkdir(parents=True, exist_ok=True)
 
         database_url = make_url(self.resolved_database_url)
         if (

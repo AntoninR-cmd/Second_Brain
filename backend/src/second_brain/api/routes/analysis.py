@@ -13,7 +13,11 @@ from second_brain.api.dependencies import (
 )
 from second_brain.core.config import Settings
 from second_brain.db.models.knowledge import KnowledgeNode
-from second_brain.db.models.processing import ProcessingJob, processing_job_is_stale
+from second_brain.db.models.processing import (
+    ProcessingJob,
+    ProcessingJobKind,
+    processing_job_is_stale,
+)
 from second_brain.db.repositories.analysis import (
     SourceAlreadyAnalyzedError,
     enqueue_source_analysis,
@@ -70,7 +74,7 @@ async def analysis_job(
     settings: Settings = Depends(get_app_settings),
 ) -> AnalysisJobOut:
     job = await get_processing_job(session, job_id)
-    if job is None:
+    if job is None or job.kind != ProcessingJobKind.ANALYZE_SOURCE:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Traitement introuvable.",

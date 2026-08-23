@@ -11,7 +11,11 @@ from sqlalchemy.orm import selectinload
 
 from second_brain.core.config import Settings
 from second_brain.db.base import utc_now
-from second_brain.db.models.processing import ProcessingJob, ProcessingJobStatus
+from second_brain.db.models.processing import (
+    ProcessingJob,
+    ProcessingJobKind,
+    ProcessingJobStatus,
+)
 from second_brain.db.models.source import AnalysisStatus, Source
 from second_brain.db.models.source_passage import SourcePassage
 from second_brain.db.session import Database
@@ -35,8 +39,10 @@ class AnalysisRunner:
         database: Database,
         generator: TextGenerator,
         settings: Settings,
+        work_lock: asyncio.Lock | None = None,
     ) -> None:
         self._database = database
+        self._work_lock = work_lock
         self._pipeline = AnalysisPipeline(
             database=database,
             generator=generator,
@@ -90,18 +96,11 @@ class AnalysisRunner:
             )
             benchmark_outcome: str | None = None
             try:
-                await self._pipeline.run(
-                    source_id=source_id,
-                    job_id=job_id,
-                    progress=lambda stage, current, total, percent, message: self._update_progress(
-                        job_id,
-                        stage=stage,
-                        current=current,
-                        total=total,
-                        percent=percent,
-                        message=message,
-                    ),
-                )
+                if self._work_lock is None:
+                    await self._run_pipeline(job_id, source_id)
+                else:
+                    async with self._work_lock:
+                        await self._run_pipeline(job_id, source_id)
             except asyncio.CancelledError:
                 raise
             except PassageProcessingError as error:
@@ -175,6 +174,20 @@ class AnalysisRunner:
                         outcome=benchmark_outcome,
                     )
 
+    async def _run_pipeline(self, job_id: UUID, source_id: UUID) -> None:
+        await self._pipeline.run(
+            source_id=source_id,
+            job_id=job_id,
+            progress=lambda stage, current, total, percent, message: self._update_progress(
+                job_id,
+                stage=stage,
+                current=current,
+                total=total,
+                percent=percent,
+                message=message,
+            ),
+        )
+
     async def _heartbeat_loop(self, job_id: UUID) -> None:
         while True:
             await asyncio.sleep(self._heartbeat_interval_seconds)
@@ -191,7 +204,10 @@ class AnalysisRunner:
                 (
                     await session.scalars(
                         select(ProcessingJob)
-                        .where(ProcessingJob.status == ProcessingJobStatus.RUNNING)
+                        .where(
+                            ProcessingJob.status == ProcessingJobStatus.RUNNING,
+                            ProcessingJob.kind == ProcessingJobKind.ANALYZE_SOURCE,
+                        )
                         .options(selectinload(ProcessingJob.source))
                     )
                 ).all()
@@ -228,7 +244,10 @@ class AnalysisRunner:
         async with self._database.session_factory() as session:
             job = await session.scalar(
                 select(ProcessingJob)
-                .where(ProcessingJob.status == ProcessingJobStatus.PENDING)
+                .where(
+                    ProcessingJob.status == ProcessingJobStatus.PENDING,
+                    ProcessingJob.kind == ProcessingJobKind.ANALYZE_SOURCE,
+                )
                 .order_by(ProcessingJob.created_at.asc(), ProcessingJob.id.asc())
                 .limit(1)
             )

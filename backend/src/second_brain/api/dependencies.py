@@ -8,7 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from second_brain.core.config import Settings
 from second_brain.db.session import Database
 from second_brain.jobs.analysis_runner import AnalysisRunner
+from second_brain.jobs.indexing_runner import IndexingRunner
 from second_brain.llm.client import TextGenerator
+from second_brain.services.vector_index import VectorIndexService
+from second_brain.vector.embeddings import EmbeddingProvider
+from second_brain.vector.store import VectorStore
 
 
 def get_database(request: Request) -> Database:
@@ -25,6 +29,22 @@ def get_text_generator(request: Request) -> TextGenerator:
 
 def get_analysis_runner(request: Request) -> AnalysisRunner:
     return request.app.state.analysis_runner
+
+
+def get_embedding_provider(request: Request) -> EmbeddingProvider:
+    return request.app.state.embedding_provider
+
+
+def get_vector_store(request: Request) -> VectorStore:
+    return request.app.state.vector_store
+
+
+def get_vector_index_service(request: Request) -> VectorIndexService:
+    return request.app.state.vector_index_service
+
+
+def get_indexing_runner(request: Request) -> IndexingRunner:
+    return request.app.state.indexing_runner
 
 
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:

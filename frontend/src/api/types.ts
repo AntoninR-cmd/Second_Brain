@@ -86,6 +86,74 @@ export interface SystemReadinessResponse {
   ollama: OllamaReadiness;
 }
 
+export type VectorIndexState =
+  | "empty"
+  | "not_built"
+  | "building"
+  | "ready"
+  | "stale"
+  | "incompatible"
+  | "unavailable"
+  | "corrupt";
+
+export interface EmbeddingReadiness {
+  ollama_available: boolean;
+  configured_model?: string;
+  model_available: boolean;
+  error?: string | null;
+  [additionalField: string]: unknown;
+}
+
+export interface EmbeddingProfile {
+  id?: string;
+  model_name: string;
+  dimensions: number | null;
+  distance: string;
+  logical_generation: number;
+  [additionalField: string]: unknown;
+}
+
+export interface VectorJob {
+  id: string;
+  kind?: string;
+  status: ProcessingJobStatus;
+  stage: string | null;
+  progress_current: number;
+  progress_total: number;
+  progress_percent: number;
+  /** Phase 4 contract names and persistent-job aliases are both supported. */
+  message?: string | null;
+  error?: string | null;
+  last_activity?: string | null;
+  progress_message?: string | null;
+  error_message?: string | null;
+  error_code?: string | null;
+  error_type?: string | null;
+  error_detail?: string | null;
+  last_activity_at?: string | null;
+  is_stale?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  [additionalField: string]: unknown;
+}
+
+export interface VectorIndexStatus {
+  state: VectorIndexState;
+  configured_model: string;
+  embedding: EmbeddingReadiness;
+  total_nodes: number;
+  indexed_nodes: number;
+  pending_or_stale_nodes: number;
+  failed_nodes: number;
+  orphan_points?: number;
+  active_profile?: EmbeddingProfile | null;
+  active_job?: VectorJob | null;
+  error?: string | null;
+  [additionalField: string]: unknown;
+}
+
 export type ProcessingJobStatus =
   | "pending"
   | "running"
@@ -167,4 +235,30 @@ export interface KnowledgeEvidence {
 export interface KnowledgeNodeDetail extends KnowledgeNodeSummary {
   source: KnowledgeSourceReference;
   evidences: KnowledgeEvidence[];
+}
+
+export interface SemanticSearchInput {
+  query: string;
+  top_k?: number;
+}
+
+export interface SemanticSearchResult {
+  score: number;
+  href: string;
+  knowledge_node: KnowledgeNodeSummary;
+  source: KnowledgeSourceReference;
+  evidences: KnowledgeEvidence[];
+  [additionalField: string]: unknown;
+}
+
+export interface SemanticSearchResponse {
+  query: string;
+  items: SemanticSearchResult[];
+  profile?: {
+    model_name: string;
+    dimensions: number;
+    distance: string;
+    [additionalField: string]: unknown;
+  } | null;
+  [additionalField: string]: unknown;
 }

@@ -20,6 +20,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from second_brain.db.base import Base, UTCDateTime, utc_now
 
 if TYPE_CHECKING:
+    from second_brain.db.models.embedding import KnowledgeEmbedding
     from second_brain.db.models.source import Source
     from second_brain.db.models.source_passage import SourcePassage
     from second_brain.db.models.source_segment import SourceSegment
@@ -65,6 +66,11 @@ class KnowledgeNode(Base):
         order_by="KnowledgeEvidence.evidence_index",
     )
     tag_links: Mapped[list[KnowledgeNodeTag]] = relationship(
+        back_populates="knowledge_node",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    embeddings: Mapped[list[KnowledgeEmbedding]] = relationship(
         back_populates="knowledge_node",
         cascade="all, delete-orphan",
         passive_deletes=True,

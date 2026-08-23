@@ -49,3 +49,16 @@ def test_custom_database_parent_is_created(tmp_path: Path) -> None:
     settings.create_data_directory()
 
     assert database_path.parent.is_dir()
+
+
+def test_qdrant_path_is_resolved_inside_data_directory(tmp_path: Path) -> None:
+    settings = Settings(
+        _env_file=None,
+        data_dir=tmp_path / "data",
+        qdrant_path=Path("derived-vectors"),
+    )
+
+    settings.create_data_directory()
+
+    assert settings.resolved_qdrant_path == (tmp_path / "data" / "derived-vectors").resolve()
+    assert settings.resolved_qdrant_path.is_dir()

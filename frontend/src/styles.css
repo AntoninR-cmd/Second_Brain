@@ -1550,6 +1550,324 @@ textarea:focus {
   font-size: 0.8rem;
 }
 
+.settings-page > .settings-panel + .settings-panel {
+  margin-top: 1rem;
+}
+
+.availability-badge.is-working {
+  background: #fffaeb;
+  color: #b54708;
+}
+
+.index-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-subtle);
+}
+
+.index-stat-grid > div {
+  min-width: 0;
+  padding: 1rem;
+  border-right: 1px solid var(--border);
+  text-align: center;
+}
+
+.index-stat-grid > div:last-child {
+  border-right: 0;
+}
+
+.index-stat-grid dt {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.index-stat-grid dd {
+  margin: 0.25rem 0 0;
+  color: var(--text);
+  font-size: 1.4rem;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+}
+
+.index-profile-list {
+  border-bottom: 1px solid var(--border);
+}
+
+.index-progress {
+  margin: 1rem 1.25rem 0;
+}
+
+.index-job-warning {
+  margin: 0.9rem 0 0;
+}
+
+.vector-index-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  padding: 1.25rem 1.25rem 0;
+}
+
+.vector-index-safety-note {
+  margin: 0;
+  padding: 0.8rem 1.25rem 1.25rem;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
+.semantic-search-form {
+  margin-bottom: 1.25rem;
+  padding: 1.25rem;
+}
+
+.semantic-search-form > label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--text);
+  font-size: 0.84rem;
+  font-weight: 750;
+}
+
+.semantic-search-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.7rem;
+}
+
+.semantic-search-controls input {
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.65rem;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.semantic-search-controls input::placeholder {
+  color: #98a2b3;
+}
+
+.semantic-search-form > p {
+  margin: 0.55rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.search-index-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #fedf89;
+  border-radius: 0.75rem;
+  background: #fffaeb;
+  color: #93370d;
+}
+
+.search-index-notice.is-blocking {
+  border-color: #f1b8b3;
+  background: var(--error-soft);
+  color: var(--error);
+}
+
+.search-index-notice strong {
+  font-size: 0.86rem;
+}
+
+.search-index-notice p {
+  margin: 0.2rem 0 0;
+  color: inherit;
+  font-size: 0.8rem;
+}
+
+.search-index-notice .button {
+  flex: 0 0 auto;
+}
+
+.search-loading {
+  min-height: 8rem;
+  margin: 1rem 0;
+}
+
+.search-state {
+  min-height: 12rem;
+  margin-top: 1.25rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: 0.9rem;
+  background: var(--surface);
+}
+
+.search-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.search-initial-state {
+  margin-top: 1.5rem;
+}
+
+.search-results {
+  margin-top: 2rem;
+}
+
+.search-results-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.search-results-heading h2 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.search-results-heading > p {
+  max-width: 28rem;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  text-align: right;
+}
+
+.semantic-result-list {
+  display: grid;
+  gap: 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: semantic-results;
+}
+
+.semantic-result-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1rem;
+  padding: 1.15rem;
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.semantic-result-rank {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: 0.6rem;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.semantic-result-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.semantic-result-heading h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.semantic-result-heading h3 a {
+  text-decoration: none;
+}
+
+.semantic-result-heading h3 a:hover {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 0.2rem;
+}
+
+.similarity-score {
+  flex: 0 0 auto;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  color: #596579;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.semantic-result-content {
+  margin: 0.55rem 0 0;
+  color: #344054;
+  font-size: 0.88rem;
+  line-height: 1.65;
+}
+
+.semantic-result-source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.8rem;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
+.semantic-result-source > * + *::before {
+  margin-right: 0.35rem;
+  color: var(--border-strong);
+  content: "·";
+}
+
+.semantic-result-source a {
+  color: var(--primary);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.semantic-result-source a:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.15rem;
+}
+
+.semantic-result-evidence {
+  margin-top: 0.8rem;
+  padding: 0.75rem 0.85rem;
+  border-left: 3px solid #c7d2fe;
+  border-radius: 0 0.55rem 0.55rem 0;
+  background: var(--surface-subtle);
+}
+
+.semantic-result-evidence strong {
+  color: var(--primary);
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 0.7rem;
+}
+
+.semantic-result-evidence blockquote {
+  display: -webkit-box;
+  margin: 0.35rem 0 0;
+  overflow: hidden;
+  color: #475467;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.semantic-result-card .knowledge-open-link {
+  margin-top: 0.8rem;
+}
+
 .page-loading {
   min-height: 20rem;
 }
@@ -1644,6 +1962,17 @@ textarea:focus {
     align-items: stretch;
   }
 
+  .search-index-notice,
+  .search-results-heading,
+  .semantic-result-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .search-results-heading > p {
+    text-align: left;
+  }
+
   .stat-grid {
     grid-template-columns: 1fr;
   }
@@ -1673,7 +2002,7 @@ textarea:focus {
 
   .main-navigation {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .navigation-link {
@@ -1756,6 +2085,30 @@ textarea:focus {
   .settings-list > div {
     grid-template-columns: 1fr;
     gap: 0.3rem;
+  }
+
+  .semantic-search-controls,
+  .index-stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .semantic-search-controls .button,
+  .search-index-notice .button,
+  .vector-index-actions .button {
+    width: 100%;
+  }
+
+  .index-stat-grid > div {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .index-stat-grid > div:last-child {
+    border-bottom: 0;
+  }
+
+  .semantic-result-card {
+    grid-template-columns: 1fr;
   }
 }
 

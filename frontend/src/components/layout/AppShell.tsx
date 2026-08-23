@@ -32,6 +32,14 @@ function SettingsIcon() {
   );
 }
 
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M10.5 3a7.5 7.5 0 1 0 4.72 13.33l4.22 4.23a1 1 0 0 0 1.42-1.42l-4.23-4.22A7.5 7.5 0 0 0 10.5 3Zm0 2a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11Z" />
+    </svg>
+  );
+}
+
 export function AppShell() {
   return (
     <div className="app-shell">
@@ -78,6 +86,15 @@ export function AppShell() {
           >
             <AddIcon />
             <span>Ajouter</span>
+          </NavLink>
+          <NavLink
+            to="/recherche"
+            className={({ isActive }) =>
+              `navigation-link${isActive ? " is-active" : ""}`
+            }
+          >
+            <SearchIcon />
+            <span>Recherche IA</span>
           </NavLink>
           <NavLink
             to="/parametres"

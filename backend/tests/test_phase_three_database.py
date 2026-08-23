@@ -71,7 +71,7 @@ def test_phase_three_migrations_create_the_complete_schema(tmp_path: Path) -> No
         }
         revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
 
-    assert revision == ("20260818_0005",)
+    assert revision == ("20260818_0006",)
     assert {
         "sources",
         "source_segments",
@@ -256,7 +256,7 @@ def test_progress_migration_preserves_existing_phase_three_job(tmp_path: Path) -
         ).fetchone()
         revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
 
-    assert revision == ("20260818_0005",)
+    assert revision == ("20260818_0006",)
     assert job == (
         job_id,
         source_id,
@@ -353,7 +353,7 @@ def test_resumable_analysis_migration_preserves_phase_three_passages_and_job(
         }["passage_id"]
         revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
 
-    assert revision == ("20260818_0005",)
+    assert revision == ("20260818_0006",)
     assert passage == (
         passage_id,
         source_id,
