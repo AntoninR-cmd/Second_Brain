@@ -19,6 +19,7 @@ from second_brain.llm import (
     PassageAnalysis,
     StructuredOutputValidationError,
 )
+from second_brain.rag.answer_schema import BrainOnlyAnswer
 
 
 def _settings(**updates: object) -> Settings:
@@ -128,6 +129,7 @@ async def test_generate_structured_sends_schema_and_validates_response() -> None
         ("passage_analysis", 901),
         ("hierarchical_summary", 602),
         ("final_summary", 1303),
+        ("cluster_labeling", 377),
     ],
 )
 async def test_all_call_types_force_think_false_and_select_their_output_limit(
@@ -161,6 +163,7 @@ async def test_all_call_types_force_think_false_and_select_their_output_limit(
             ollama_num_predict_passage_analysis=901,
             ollama_num_predict_hierarchical_summary=602,
             ollama_num_predict_final_summary=1303,
+            ollama_num_predict_cluster_labels=377,
         ),
         transport=httpx2.MockTransport(handler),
     )
@@ -173,6 +176,77 @@ async def test_all_call_types_force_think_false_and_select_their_output_limit(
 
     assert captured_payload["think"] is False
     assert captured_payload["options"]["num_predict"] == expected_num_predict  # type: ignore[index]
+
+
+@pytest.mark.anyio
+async def test_rag_answer_forces_think_false_and_uses_dedicated_generation_options() -> None:
+    payloads: list[dict[str, object]] = []
+
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        payloads.append(json.loads(request.content))
+        return httpx2.Response(
+            200,
+            json={
+                "response": json.dumps(
+                    {
+                        "answer": "La réponse est justifiée par le contexte [K1].",
+                        "used_knowledge": ["K1"],
+                        "insufficient_context": False,
+                    }
+                ),
+                "done": True,
+            },
+        )
+
+    generator = OllamaTextGenerator(
+        _settings(
+            ollama_rag_temperature=0.07,
+            ollama_num_predict_rag=345,
+            extraction_max_retries=3,
+        ),
+        transport=httpx2.MockTransport(handler),
+    )
+
+    result = await generator.generate_structured(
+        prompt="Question RAG sans contenu privé.",
+        response_model=BrainOnlyAnswer,
+        call_type="rag_answer",
+        system_prompt="Utilise uniquement le contexte.",
+    )
+
+    assert result.used_knowledge == ["K1"]
+    assert len(payloads) == 1
+    assert payloads[0]["think"] is False
+    assert payloads[0]["format"] == BrainOnlyAnswer.model_json_schema()
+    assert payloads[0]["options"] == {
+        "num_ctx": 8192,
+        "num_predict": 345,
+        "temperature": 0.07,
+    }
+
+
+@pytest.mark.anyio
+async def test_rag_invalid_json_is_rejected_after_exactly_one_post() -> None:
+    call_count = 0
+
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        nonlocal call_count
+        call_count += 1
+        return httpx2.Response(200, json={"response": "not-json", "done": True})
+
+    generator = OllamaTextGenerator(
+        _settings(extraction_max_retries=3),
+        transport=httpx2.MockTransport(handler),
+    )
+
+    with pytest.raises(OllamaInvalidResponseError, match="Validation"):
+        await generator.generate_structured(
+            prompt="Question RAG.",
+            response_model=BrainOnlyAnswer,
+            call_type="rag_answer",
+        )
+
+    assert call_count == 1
 
 
 @pytest.mark.anyio

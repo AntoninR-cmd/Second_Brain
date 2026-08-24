@@ -35,9 +35,13 @@ class EmbeddingReadinessOut(BaseModel):
 class EmbeddingProfileOut(BaseModel):
     id: UUID
     model_name: str
+    model_digest: str | None
     dimensions: int | None
     distance: Literal["cosine"] = "cosine"
+    semantic_text_version: str
     logical_generation: int
+    status: Literal["building", "active", "retired", "failed"]
+    error_message: str | None
 
 
 class VectorJobOut(BaseModel):
@@ -95,6 +99,7 @@ class VectorIndexStatusOut(BaseModel):
     orphan_points: int = 0
     active_profile: EmbeddingProfileOut | None = None
     active_job: VectorJobOut | None = None
+    latest_job: VectorJobOut | None = None
     error: str | None = None
 
 

@@ -29,6 +29,9 @@ finally {
 
 Push-Location $frontendPath
 try {
+    & npm.cmd run test
+    if ($LASTEXITCODE -ne 0) { throw 'Les tests frontend ont echoue.' }
+
     & npm.cmd run lint
     if ($LASTEXITCODE -ne 0) { throw 'Le lint frontend a echoue.' }
 

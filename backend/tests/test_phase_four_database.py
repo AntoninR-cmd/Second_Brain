@@ -69,7 +69,7 @@ def test_phase_four_migration_creates_vector_index_schema(tmp_path: Path) -> Non
         ).fetchone()
         revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
 
-    assert revision == ("20260818_0006",)
+    assert revision == ("20260824_0007",)
     assert {"embedding_profiles", "knowledge_embeddings"}.issubset(tables)
     assert {
         "provider",
@@ -214,7 +214,7 @@ def test_phase_four_upgrade_preserves_phase_three_business_data(tmp_path: Path) 
         ).fetchone()
         revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
 
-    assert revision == ("20260818_0006",)
+    assert revision == ("20260824_0007",)
     assert preserved_source == (source_id, "Source Phase 3", "Texte conserve", "analyzed")
     assert preserved_node == (
         node_id,

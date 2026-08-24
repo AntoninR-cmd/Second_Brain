@@ -14,10 +14,13 @@ dependencies = [
     "charset-normalizer>=3.4,<4",
     "fastapi>=0.115,<1",
     "httpx2>=2,<3",
+    "numpy>=2,<3",
     "pydantic-settings>=2.7,<3",
     "python-multipart>=0.0.20,<1",
     "qdrant-client>=1.15,<2",
+    "scikit-learn>=1.7,<1.8",
     "sqlalchemy>=2.0,<3",
+    "umap-learn>=0.5.12,<0.6",
     "uvicorn[standard]>=0.34,<1",
 ]
 

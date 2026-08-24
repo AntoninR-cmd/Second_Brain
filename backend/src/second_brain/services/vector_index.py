@@ -3,10 +3,12 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
+from datetime import datetime
+from time import perf_counter
 from typing import Literal
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -36,6 +38,7 @@ from second_brain.vector.semantic_text import (
     semantic_text_fingerprint,
 )
 from second_brain.vector.store import (
+    StoredVectorPoint,
     VectorCollectionInfo,
     VectorPoint,
     VectorSearchHit,
@@ -65,6 +68,24 @@ VECTOR_JOB_KINDS = (
 )
 
 
+def _active_profile_snapshot(profile: EmbeddingProfile) -> ActiveEmbeddingProfile:
+    if profile.dimensions is None:
+        raise VectorIndexIncompleteError(
+            "Le profil vectoriel actif ne contient aucune dimension valide."
+        )
+    return ActiveEmbeddingProfile(
+        id=profile.id,
+        provider=profile.provider,
+        model_name=profile.model_name,
+        model_digest=profile.model_digest,
+        dimensions=profile.dimensions,
+        distance="cosine",
+        collection_name=profile.collection_name,
+        semantic_text_version=profile.semantic_text_version,
+        logical_generation=profile.logical_generation,
+    )
+
+
 class VectorIndexError(RuntimeError):
     code = "vector_index_error"
 
@@ -89,6 +110,10 @@ class VectorIndexUnavailableError(VectorIndexError):
     code = "vector_index_unavailable"
 
 
+class VectorIndexIncompleteError(VectorIndexError):
+    code = "vector_index_incomplete"
+
+
 @dataclass(frozen=True, slots=True)
 class VectorIndexSnapshot:
     state: VectorIndexState
@@ -99,6 +124,7 @@ class VectorIndexSnapshot:
     failed_nodes: int
     profile: EmbeddingProfile | None
     active_job: ProcessingJob | None
+    latest_job: ProcessingJob | None
     orphan_points: int = 0
     error: str | None = None
 
@@ -110,10 +136,50 @@ class SemanticSearchResult:
 
 
 @dataclass(frozen=True, slots=True)
+class SemanticSearchTimings:
+    readiness_seconds: float = 0.0
+    embedding_seconds: float = 0.0
+    qdrant_seconds: float = 0.0
+    sqlite_seconds: float = 0.0
+    total_seconds: float = 0.0
+
+
+@dataclass(frozen=True, slots=True)
 class SemanticSearchResults:
     query: str
     profile: EmbeddingProfile | None
     items: tuple[SemanticSearchResult, ...]
+    timings: SemanticSearchTimings = SemanticSearchTimings()
+
+
+@dataclass(frozen=True, slots=True)
+class ActiveEmbeddingProfile:
+    id: UUID
+    provider: str
+    model_name: str
+    model_digest: str | None
+    dimensions: int
+    distance: Literal["cosine"]
+    collection_name: str
+    semantic_text_version: str
+    logical_generation: int
+
+
+@dataclass(frozen=True, slots=True)
+class ActiveEmbeddingNode:
+    id: UUID
+    source_id: UUID
+    title: str
+    content: str
+    tags: tuple[str, ...]
+    text_fingerprint: str
+    vector: tuple[float, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ActiveEmbeddingCorpus:
+    profile: ActiveEmbeddingProfile | None
+    nodes: tuple[ActiveEmbeddingNode, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,6 +223,101 @@ class VectorIndexService:
     async def get_embedding_readiness(self) -> OllamaReadiness:
         return await self._embedding_provider.get_readiness()
 
+    async def load_active_corpus(self) -> ActiveEmbeddingCorpus:
+        """Return a fully validated snapshot of vectors already derived in Phase 4.
+
+        This deliberately does not contact Ollama: an existing active vector profile is
+        sufficient to build the mathematical brain even when the models are offline.
+        """
+
+        async with self._database.session_factory() as session:
+            profile = await self._active_profile(session)
+            nodes = list(
+                (
+                    await session.scalars(
+                        select(KnowledgeNode)
+                        .options(
+                            selectinload(KnowledgeNode.tag_links).selectinload(KnowledgeNodeTag.tag)
+                        )
+                        .order_by(KnowledgeNode.id.asc())
+                    )
+                )
+                .unique()
+                .all()
+            )
+            if not nodes:
+                return ActiveEmbeddingCorpus(
+                    profile=_active_profile_snapshot(profile) if profile is not None else None,
+                    nodes=(),
+                )
+            if profile is None:
+                raise VectorIndexNotBuiltError(
+                    "L'index vectoriel actif doit etre construit avant le cerveau."
+                )
+            records = {
+                record.knowledge_node_id: record
+                for record in (
+                    await session.scalars(
+                        select(KnowledgeEmbedding).where(
+                            KnowledgeEmbedding.embedding_profile_id == profile.id
+                        )
+                    )
+                ).all()
+            }
+
+        profile_snapshot = _active_profile_snapshot(profile)
+        info = await self._vector_store.inspect_collection(profile.collection_name)
+        if info is None:
+            raise VectorIndexIncompleteError("La collection Qdrant du profil actif est absente.")
+        self._validate_collection(profile, info)
+
+        ordered_ids = [node.id for node in nodes]
+        stored_vectors = await self._vector_store.retrieve_vectors(
+            profile.collection_name,
+            ordered_ids,
+        )
+        points = {point.knowledge_node_id: point for point in stored_vectors}
+        if len(points) != len(stored_vectors):
+            raise VectorIndexIncompleteError(
+                "Le profil vectoriel actif contient des vecteurs dupliques."
+            )
+        qdrant_ids = await self._vector_store.list_point_ids(profile.collection_name)
+        if qdrant_ids != set(ordered_ids):
+            raise VectorIndexIncompleteError(
+                "Le profil vectoriel actif ne correspond pas exactement aux connaissances SQLite."
+            )
+
+        result: list[ActiveEmbeddingNode] = []
+        for node in nodes:
+            fingerprint = semantic_text_fingerprint(title=node.title, content=node.content)
+            record = records.get(node.id)
+            point = points.get(node.id)
+            if (
+                record is None
+                or record.status != KnowledgeEmbeddingStatus.INDEXED
+                or record.text_fingerprint != fingerprint
+                or point is None
+                or point.source_id != node.source_id
+                or point.fingerprint != fingerprint
+                or len(point.vector) != profile_snapshot.dimensions
+            ):
+                raise VectorIndexIncompleteError(
+                    "Un embedding actif ne correspond pas a son checkpoint SQLite."
+                )
+            tags = tuple(sorted({link.tag.normalized_name for link in node.tag_links}))
+            result.append(
+                ActiveEmbeddingNode(
+                    id=node.id,
+                    source_id=node.source_id,
+                    title=node.title,
+                    content=node.content,
+                    tags=tags,
+                    text_fingerprint=fingerprint,
+                    vector=point.vector,
+                )
+            )
+        return ActiveEmbeddingCorpus(profile=profile_snapshot, nodes=tuple(result))
+
     async def status(self) -> VectorIndexSnapshot:
         readiness = await self._embedding_provider.get_readiness()
         async with self._database.session_factory() as session:
@@ -164,6 +325,7 @@ class VectorIndexService:
             active_profile = await self._active_profile(session)
             building_profile = await self._building_profile(session)
             active_job = await self._active_vector_job(session)
+            latest_job = await self._latest_vector_job(session)
             profile = active_profile or building_profile
             indexed, pending, failed = await self._profile_counts(
                 session,
@@ -181,10 +343,33 @@ class VectorIndexService:
                 failed_nodes=0,
                 profile=None,
                 active_job=active_job,
+                latest_job=latest_job,
             )
         if active_profile is None:
+            building_incompatible = (
+                building_profile is not None
+                and not self._profile_is_compatible(
+                    building_profile,
+                    readiness.configured_model_digest,
+                )
+            )
+            building_failed = (
+                building_profile is not None
+                and building_profile.error_message is not None
+                and active_job is None
+            )
             return VectorIndexSnapshot(
-                state="building" if building_profile or active_job else "not_built",
+                state=(
+                    "incompatible"
+                    if building_incompatible
+                    else "building"
+                    if active_job is not None
+                    else "stale"
+                    if building_failed
+                    else "building"
+                    if building_profile is not None
+                    else "not_built"
+                ),
                 readiness=readiness,
                 total_nodes=total,
                 indexed_nodes=indexed,
@@ -192,9 +377,21 @@ class VectorIndexService:
                 failed_nodes=failed,
                 profile=building_profile,
                 active_job=active_job,
+                latest_job=latest_job,
+                error=(
+                    "Le profil en construction appartient a une autre version du modele. "
+                    "Relancez une reconstruction."
+                    if building_incompatible
+                    else building_profile.error_message
+                    if building_profile is not None
+                    else None
+                ),
             )
 
-        if not _model_names_match(active_profile.model_name, self.configured_model):
+        if not self._profile_is_compatible(
+            active_profile,
+            readiness.configured_model_digest,
+        ):
             return VectorIndexSnapshot(
                 state="building" if active_job else "incompatible",
                 readiness=readiness,
@@ -204,6 +401,7 @@ class VectorIndexService:
                 failed_nodes=failed,
                 profile=active_profile,
                 active_job=active_job,
+                latest_job=latest_job,
                 error=(
                     "Le modele d'embedding configure differe de celui de l'index actif. "
                     "Reconstruisez l'index avant de poursuivre."
@@ -221,6 +419,7 @@ class VectorIndexService:
                 failed_nodes=failed,
                 profile=active_profile,
                 active_job=active_job,
+                latest_job=latest_job,
                 error=store_error,
             )
         try:
@@ -246,6 +445,7 @@ class VectorIndexService:
                 failed_nodes=failed,
                 profile=active_profile,
                 active_job=active_job,
+                latest_job=latest_job,
                 orphan_points=0,
                 error=store_error,
             )
@@ -266,7 +466,15 @@ class VectorIndexService:
             failed_nodes=failed,
             profile=active_profile,
             active_job=active_job,
+            latest_job=latest_job,
             orphan_points=orphan_points,
+            error=(
+                building_profile.error_message
+                if building_profile is not None
+                and building_profile.error_message is not None
+                and active_job is None
+                else None
+            ),
         )
 
     async def prepare_job(self, kind: ProcessingJobKind) -> ProcessingJob:
@@ -277,6 +485,8 @@ class VectorIndexService:
         if kind not in VECTOR_JOB_KINDS:
             raise ValueError("Le type de traitement vectoriel est invalide.")
 
+        readiness = await self._embedding_provider.get_readiness()
+        current_digest = readiness.configured_model_digest
         async with self._database.session_factory() as session:
             existing = await self._active_vector_job(session)
             if existing is not None:
@@ -288,7 +498,7 @@ class VectorIndexService:
             if (
                 kind == ProcessingJobKind.INDEX_KNOWLEDGE
                 and active_profile is not None
-                and not _model_names_match(active_profile.model_name, self.configured_model)
+                and not self._profile_is_compatible(active_profile, current_digest)
             ):
                 raise VectorIndexIncompatibleError(
                     "Le modele d'embedding a change. Utilisez Reconstruire l'index."
@@ -302,6 +512,20 @@ class VectorIndexService:
                 )
             else:
                 profile = await self._building_profile(session, configured_only=True)
+
+            if (
+                profile is not None
+                and profile.status == EmbeddingProfileStatus.BUILDING
+                and not self._profile_is_compatible(profile, current_digest)
+            ):
+                profile.status = EmbeddingProfileStatus.FAILED
+                profile.error_message = (
+                    "Le modele Ollama a change pendant la construction de ce profil."
+                )
+                profile = None
+
+            if profile is not None:
+                profile.error_message = None
 
             total = await self._count_nodes(session)
             job = ProcessingJob(
@@ -322,12 +546,16 @@ class VectorIndexService:
     async def run_job(self, job_id: UUID) -> None:
         job, profile, nodes = await self._prepare_run(job_id)
         if not nodes:
-            if profile is not None and profile.dimensions is not None:
+            if job.kind == ProcessingJobKind.REBUILD_VECTOR_INDEX:
+                await self._clear_empty_rebuild()
+            elif profile is not None and profile.dimensions is not None:
                 await self._remove_orphan_points(profile)
             await self._update_progress(job_id, current=0, total=0, message="Aucune connaissance.")
             return
 
         profile = profile or await self._create_building_profile(job_id)
+        if job.kind == ProcessingJobKind.REBUILD_VECTOR_INDEX:
+            await self._prepare_rebuild_storage(profile)
         await self._update_progress(
             job_id,
             current=0,
@@ -371,47 +599,104 @@ class VectorIndexService:
                 message=f"Indexation : {completed} / {len(nodes)} connaissances.",
             )
 
-        await self._remove_orphan_points(profile)
-        if profile.status == EmbeddingProfileStatus.BUILDING:
-            await self._activate_profile(profile.id)
+        try:
+            await self._remove_orphan_points(profile)
+            readiness = await self._embedding_provider.get_readiness()
+            self._validate_profile_model(profile, readiness.configured_model_digest)
+            await self._assert_profile_complete(profile.id, cutoff=job.created_at)
+            if profile.status == EmbeddingProfileStatus.BUILDING:
+                await self._activate_profile(profile.id)
+            else:
+                await self._cleanup_retired_collections(exclude_profile_id=profile.id)
+        except Exception as error:
+            await self._set_profile_error(profile.id, error)
+            raise
 
     async def search(self, query: str, *, top_k: int) -> SemanticSearchResults:
+        search_started_at = perf_counter()
+        readiness_started_at = perf_counter()
+        readiness = await self._embedding_provider.get_readiness()
+        readiness_seconds = perf_counter() - readiness_started_at
         async with self._database.session_factory() as session:
             profile = await self._active_profile(session)
             total = await self._count_nodes(session)
         if profile is None:
             if total == 0:
-                return SemanticSearchResults(query=query, profile=None, items=())
+                return SemanticSearchResults(
+                    query=query,
+                    profile=None,
+                    items=(),
+                    timings=SemanticSearchTimings(
+                        readiness_seconds=readiness_seconds,
+                        total_seconds=perf_counter() - search_started_at,
+                    ),
+                )
             raise VectorIndexNotBuiltError(
                 "L'index semantique n'existe pas encore. Indexez les connaissances."
             )
-        self._validate_profile_model(profile)
+        self._validate_profile_model(profile, readiness.configured_model_digest)
         if profile.dimensions is None:
             raise VectorIndexIncompatibleError(
                 "La dimension de l'index est inconnue. Reconstruisez l'index."
             )
 
+        embedding_started_at = perf_counter()
         embedded = await self._embedding_provider.embed(
             [query],
             context=EmbeddingCallContext(operation="semantic_search"),
         )
+        embedding_seconds = perf_counter() - embedding_started_at
+        if not _model_names_match(embedded.model, profile.model_name):
+            raise VectorIndexIncompatibleError(
+                "Ollama a utilise un modele different du profil actif."
+            )
         if embedded.dimension != profile.dimensions:
             raise VectorIndexIncompatibleError(
                 "Le modele produit une dimension differente de l'index actif. "
                 "Reconstruisez l'index."
             )
+        qdrant_started_at = perf_counter()
+        point_count = len(await self._vector_store.list_point_ids(profile.collection_name))
+        if point_count == 0:
+            qdrant_seconds = perf_counter() - qdrant_started_at
+            return SemanticSearchResults(
+                query=query,
+                profile=profile,
+                items=(),
+                timings=SemanticSearchTimings(
+                    readiness_seconds=readiness_seconds,
+                    embedding_seconds=embedding_seconds,
+                    qdrant_seconds=qdrant_seconds,
+                    total_seconds=perf_counter() - search_started_at,
+                ),
+            )
         hits = await self._vector_store.search(
             profile.collection_name,
             embedded.vectors[0],
-            limit=min(50, max(top_k, top_k * 3)),
+            limit=point_count,
         )
+        qdrant_seconds = perf_counter() - qdrant_started_at
+        sqlite_started_at = perf_counter()
         items = await self._load_search_results(profile, hits, top_k=top_k)
-        return SemanticSearchResults(query=query, profile=profile, items=tuple(items))
+        sqlite_seconds = perf_counter() - sqlite_started_at
+        return SemanticSearchResults(
+            query=query,
+            profile=profile,
+            items=tuple(items),
+            timings=SemanticSearchTimings(
+                readiness_seconds=readiness_seconds,
+                embedding_seconds=embedding_seconds,
+                qdrant_seconds=qdrant_seconds,
+                sqlite_seconds=sqlite_seconds,
+                total_seconds=perf_counter() - search_started_at,
+            ),
+        )
 
     async def _prepare_run(
         self,
         job_id: UUID,
     ) -> tuple[ProcessingJob, EmbeddingProfile | None, list[_NodeInput]]:
+        readiness = await self._embedding_provider.get_readiness()
         async with self._database.session_factory() as session:
             job = await session.get(ProcessingJob, job_id)
             if job is None or job.kind not in VECTOR_JOB_KINDS:
@@ -424,7 +709,7 @@ class VectorIndexService:
             if profile is None and job.kind == ProcessingJobKind.INDEX_KNOWLEDGE:
                 profile = await self._active_profile(session)
             if profile is not None:
-                self._validate_profile_model(profile)
+                self._validate_profile_model(profile, readiness.configured_model_digest)
 
             rows = (
                 await session.execute(
@@ -445,6 +730,7 @@ class VectorIndexService:
             return job, profile, nodes
 
     async def _create_building_profile(self, job_id: UUID) -> EmbeddingProfile:
+        readiness = await self._embedding_provider.get_readiness()
         async with self._database.session_factory() as session:
             job = await session.get(ProcessingJob, job_id)
             if job is None:
@@ -458,7 +744,7 @@ class VectorIndexService:
                 id=profile_id,
                 provider="ollama",
                 model_name=self.configured_model,
-                model_digest=None,
+                model_digest=readiness.configured_model_digest,
                 dimensions=None,
                 distance=EmbeddingDistance.COSINE,
                 collection_name=f"second_brain_nodes_g{generation}_{profile_id.hex[:8]}",
@@ -676,11 +962,95 @@ class VectorIndexService:
         if orphan_ids:
             await self._vector_store.delete(profile.collection_name, orphan_ids)
 
+    async def _prepare_rebuild_storage(self, profile: EmbeddingProfile) -> None:
+        try:
+            info = await self._vector_store.inspect_collection(profile.collection_name)
+        except VectorStoreCorruptedError:
+            await self._vector_store.reset_storage()
+            await self._reset_profiles_after_storage_reset(profile.id)
+            profile.dimensions = None
+            return
+
+        if info is None:
+            if profile.dimensions is not None:
+                await self._reset_building_profile(profile.id)
+                profile.dimensions = None
+            return
+        try:
+            self._validate_collection(profile, info)
+        except (VectorStoreCompatibilityError, VectorIndexIncompatibleError):
+            await self._vector_store.delete_collection(profile.collection_name)
+            await self._reset_building_profile(profile.id)
+            profile.dimensions = None
+
+    async def _clear_empty_rebuild(self) -> None:
+        async with self._database.session_factory() as session:
+            profiles = list((await session.scalars(select(EmbeddingProfile))).all())
+        try:
+            for collection_name in {profile.collection_name for profile in profiles}:
+                await self._vector_store.delete_collection(collection_name)
+        except VectorStoreCorruptedError:
+            await self._vector_store.reset_storage()
+
+        async with self._database.session_factory() as session:
+            await session.execute(
+                update(EmbeddingProfile)
+                .where(
+                    EmbeddingProfile.status.in_(
+                        [
+                            EmbeddingProfileStatus.ACTIVE,
+                            EmbeddingProfileStatus.BUILDING,
+                            EmbeddingProfileStatus.FAILED,
+                        ]
+                    )
+                )
+                .values(status=EmbeddingProfileStatus.RETIRED, error_message=None)
+            )
+            await session.commit()
+
+    async def _reset_profiles_after_storage_reset(self, current_profile_id: UUID) -> None:
+        async with self._database.session_factory() as session:
+            await session.execute(
+                update(EmbeddingProfile)
+                .where(
+                    EmbeddingProfile.id != current_profile_id,
+                    EmbeddingProfile.status.in_(
+                        [EmbeddingProfileStatus.ACTIVE, EmbeddingProfileStatus.BUILDING]
+                    ),
+                )
+                .values(status=EmbeddingProfileStatus.RETIRED)
+            )
+            await session.execute(
+                delete(KnowledgeEmbedding).where(
+                    KnowledgeEmbedding.embedding_profile_id == current_profile_id
+                )
+            )
+            current = await session.get(EmbeddingProfile, current_profile_id)
+            if current is not None:
+                current.dimensions = None
+                current.error_message = None
+            await session.commit()
+
+    async def _reset_building_profile(self, profile_id: UUID) -> None:
+        async with self._database.session_factory() as session:
+            await session.execute(
+                delete(KnowledgeEmbedding).where(
+                    KnowledgeEmbedding.embedding_profile_id == profile_id
+                )
+            )
+            profile = await session.get(EmbeddingProfile, profile_id)
+            if profile is not None:
+                profile.dimensions = None
+                profile.error_message = None
+            await session.commit()
+
     async def _activate_profile(self, profile_id: UUID) -> None:
+        readiness = await self._embedding_provider.get_readiness()
         async with self._database.session_factory() as session:
             profile = await session.get(EmbeddingProfile, profile_id)
             if profile is None or profile.dimensions is None:
                 raise VectorIndexError("Le profil vectoriel ne peut pas etre active.")
+            self._validate_profile_model(profile, readiness.configured_model_digest)
             await session.execute(
                 update(EmbeddingProfile)
                 .where(
@@ -693,6 +1063,106 @@ class VectorIndexService:
             profile.activated_at = utc_now()
             profile.error_message = None
             await session.commit()
+        await self._cleanup_retired_collections(exclude_profile_id=profile_id)
+
+    async def _assert_profile_complete(self, profile_id: UUID, *, cutoff: datetime) -> None:
+        async with self._database.session_factory() as session:
+            profile = await session.get(EmbeddingProfile, profile_id)
+            if profile is None or profile.dimensions is None:
+                raise VectorIndexIncompleteError(
+                    "Le profil vectoriel est incomplet : dimension absente."
+                )
+            nodes = (
+                await session.execute(
+                    select(
+                        KnowledgeNode.id,
+                        KnowledgeNode.source_id,
+                        KnowledgeNode.title,
+                        KnowledgeNode.content,
+                    )
+                    .where(KnowledgeNode.created_at <= cutoff)
+                    .order_by(KnowledgeNode.id.asc())
+                )
+            ).all()
+            records = {
+                record.knowledge_node_id: record
+                for record in (
+                    await session.scalars(
+                        select(KnowledgeEmbedding).where(
+                            KnowledgeEmbedding.embedding_profile_id == profile.id
+                        )
+                    )
+                ).all()
+            }
+
+        info = await self._vector_store.inspect_collection(profile.collection_name)
+        if info is None:
+            raise VectorIndexIncompleteError(
+                "Le profil vectoriel est incomplet : collection Qdrant absente."
+            )
+        self._validate_collection(profile, info)
+        expected_ids = {node.id for node in nodes}
+        point_ids = await self._vector_store.list_point_ids(profile.collection_name)
+        if point_ids != expected_ids:
+            raise VectorIndexIncompleteError(
+                "Le profil vectoriel est incomplet : le nombre de points Qdrant "
+                "ne correspond pas aux connaissances validees."
+            )
+
+        points: dict[UUID, StoredVectorPoint] = {}
+        ordered_ids = sorted(expected_ids, key=str)
+        for offset in range(0, len(ordered_ids), 256):
+            stored = await self._vector_store.retrieve(
+                profile.collection_name,
+                ordered_ids[offset : offset + 256],
+            )
+            points.update({point.knowledge_node_id: point for point in stored})
+
+        for node in nodes:
+            fingerprint = semantic_text_fingerprint(title=node.title, content=node.content)
+            record = records.get(node.id)
+            point = points.get(node.id)
+            if (
+                record is None
+                or record.status != KnowledgeEmbeddingStatus.INDEXED
+                or record.text_fingerprint != fingerprint
+                or point is None
+                or point.source_id != node.source_id
+                or point.fingerprint != fingerprint
+            ):
+                raise VectorIndexIncompleteError(
+                    "Le profil vectoriel est incomplet : un checkpoint ou un payload "
+                    "ne correspond pas a SQLite."
+                )
+
+    async def _cleanup_retired_collections(self, *, exclude_profile_id: UUID) -> None:
+        async with self._database.session_factory() as session:
+            names = list(
+                (
+                    await session.scalars(
+                        select(EmbeddingProfile.collection_name).where(
+                            EmbeddingProfile.status == EmbeddingProfileStatus.RETIRED,
+                            EmbeddingProfile.id != exclude_profile_id,
+                        )
+                    )
+                ).all()
+            )
+        for collection_name in names:
+            try:
+                await self._vector_store.delete_collection(collection_name)
+            except VectorStoreError as error:
+                logger.warning(
+                    "Retired Qdrant collection cleanup deferred collection=%s error_type=%s",
+                    collection_name,
+                    type(error).__name__,
+                )
+
+    async def _set_profile_error(self, profile_id: UUID, error: Exception) -> None:
+        async with self._database.session_factory() as session:
+            profile = await session.get(EmbeddingProfile, profile_id)
+            if profile is not None:
+                profile.error_message = _safe_error_message(error)
+                await session.commit()
 
     async def _load_search_results(
         self,
@@ -900,15 +1370,36 @@ class VectorIndexService:
                 "La collection Qdrant a une dimension ou une metrique incompatible."
             )
 
-    def _validate_profile_model(self, profile: EmbeddingProfile) -> None:
-        if not _model_names_match(profile.model_name, self.configured_model):
+    def _validate_profile_model(
+        self,
+        profile: EmbeddingProfile,
+        configured_digest: str | None,
+    ) -> None:
+        if not self._profile_is_compatible(profile, configured_digest):
             raise VectorIndexIncompatibleError(
                 "Le modele d'embedding configure differe de l'index. Reconstruisez l'index."
             )
-        if profile.semantic_text_version != SEMANTIC_TEXT_VERSION:
-            raise VectorIndexIncompatibleError(
-                "La construction du texte semantique a change. Reconstruisez l'index."
-            )
+
+    def _profile_is_compatible(
+        self,
+        profile: EmbeddingProfile,
+        configured_digest: str | None,
+    ) -> bool:
+        return (
+            self._profile_model_matches(profile, configured_digest)
+            and profile.semantic_text_version == SEMANTIC_TEXT_VERSION
+        )
+
+    def _profile_model_matches(
+        self,
+        profile: EmbeddingProfile,
+        configured_digest: str | None,
+    ) -> bool:
+        if not _model_names_match(profile.model_name, self.configured_model):
+            return False
+        if configured_digest is None:
+            return True
+        return profile.model_digest == configured_digest
 
     async def _update_progress(
         self,
@@ -974,6 +1465,15 @@ class VectorIndexService:
                 ),
             )
             .order_by(ProcessingJob.created_at.asc())
+            .limit(1)
+        )
+
+    @staticmethod
+    async def _latest_vector_job(session: AsyncSession) -> ProcessingJob | None:
+        return await session.scalar(
+            select(ProcessingJob)
+            .where(ProcessingJob.kind.in_(VECTOR_JOB_KINDS))
+            .order_by(ProcessingJob.created_at.desc(), ProcessingJob.id.desc())
             .limit(1)
         )
 

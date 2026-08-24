@@ -242,12 +242,14 @@ class IndexingRunner:
         )
         logger.info(
             "Vector benchmark processing_job_id=%s kind=%s outcome=%s "
-            "knowledge_nodes=%d embedding_batches=%d duration_seconds=%.3f "
+            "knowledge_nodes_completed=%d embedding_items=%d embedding_batches=%d "
+            "duration_seconds=%.3f "
             "average_batch_seconds=%.3f embedding_duration_ms=%d "
             "ollama_total_duration_ns=%d prompt_eval_count=%d",
             job.id,
             job.kind.value,
             outcome,
+            job.progress_current,
             job.embedding_item_count,
             job.embedding_batch_count,
             duration_seconds,

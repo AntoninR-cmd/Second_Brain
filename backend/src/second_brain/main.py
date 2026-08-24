@@ -19,6 +19,7 @@ def create_app(
     vector_store: VectorStore | None = None,
     start_analysis_worker: bool = True,
     start_indexing_worker: bool = True,
+    start_brain_worker: bool | None = None,
 ) -> FastAPI:
     selected_settings = settings or get_settings()
     application = FastAPI(
@@ -32,6 +33,9 @@ def create_app(
     application.state.vector_store = vector_store
     application.state.analysis_worker_enabled = start_analysis_worker
     application.state.indexing_worker_enabled = start_indexing_worker
+    application.state.brain_worker_enabled = (
+        start_indexing_worker if start_brain_worker is None else start_brain_worker
+    )
 
     origins = selected_settings.allowed_origin_list
     if origins:

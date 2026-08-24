@@ -45,6 +45,13 @@ async def test_qdrant_local_store_persists_searches_and_upserts_without_duplicat
             point.knowledge_node_id
             for point in await store.retrieve(collection, [second_node_id, first_node_id])
         ] == [second_node_id, first_node_id]
+        vectors = await store.retrieve_vectors(collection, [second_node_id, first_node_id])
+        assert [point.knowledge_node_id for point in vectors] == [
+            second_node_id,
+            first_node_id,
+        ]
+        assert vectors[0].vector == (0.0, 1.0, 0.0)
+        assert vectors[1].vector == (1.0, 0.0, 0.0)
 
         hits = await store.search(collection, [0.9, 0.1, 0.0], limit=2)
         assert [hit.knowledge_node_id for hit in hits] == [first_node_id, second_node_id]

@@ -102,6 +102,24 @@ class Settings(BaseSettings):
             "SECOND_BRAIN_OLLAMA_EXTRACTION_TEMPERATURE",
         ),
     )
+    ollama_rag_temperature: float = Field(
+        default=0.1,
+        ge=0,
+        le=1,
+        validation_alias=AliasChoices(
+            "OLLAMA_RAG_TEMPERATURE",
+            "SECOND_BRAIN_OLLAMA_RAG_TEMPERATURE",
+        ),
+    )
+    ollama_cluster_label_temperature: float = Field(
+        default=0.0,
+        ge=0,
+        le=1,
+        validation_alias=AliasChoices(
+            "OLLAMA_CLUSTER_LABEL_TEMPERATURE",
+            "SECOND_BRAIN_OLLAMA_CLUSTER_LABEL_TEMPERATURE",
+        ),
+    )
     ollama_keep_alive: str = Field(
         default="5m",
         min_length=1,
@@ -133,6 +151,24 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices(
             "OLLAMA_NUM_PREDICT_FINAL_SUMMARY",
             "SECOND_BRAIN_OLLAMA_NUM_PREDICT_FINAL_SUMMARY",
+        ),
+    )
+    ollama_num_predict_rag: int = Field(
+        default=384,
+        ge=64,
+        le=32_768,
+        validation_alias=AliasChoices(
+            "OLLAMA_NUM_PREDICT_RAG",
+            "SECOND_BRAIN_OLLAMA_NUM_PREDICT_RAG",
+        ),
+    )
+    ollama_num_predict_cluster_labels: int = Field(
+        default=384,
+        ge=64,
+        le=4096,
+        validation_alias=AliasChoices(
+            "OLLAMA_NUM_PREDICT_CLUSTER_LABELS",
+            "SECOND_BRAIN_OLLAMA_NUM_PREDICT_CLUSTER_LABELS",
         ),
     )
     chunk_target_tokens: int = Field(
@@ -190,6 +226,171 @@ class Settings(BaseSettings):
         le=50,
         validation_alias=AliasChoices(
             "SEMANTIC_SEARCH_TOP_K", "SECOND_BRAIN_SEMANTIC_SEARCH_TOP_K"
+        ),
+    )
+    rag_retrieval_top_k: int = Field(
+        default=8,
+        ge=1,
+        le=50,
+        validation_alias=AliasChoices(
+            "RAG_RETRIEVAL_TOP_K",
+            "SECOND_BRAIN_RAG_RETRIEVAL_TOP_K",
+        ),
+    )
+    rag_context_max_nodes: int = Field(
+        default=5,
+        ge=1,
+        le=50,
+        validation_alias=AliasChoices(
+            "RAG_CONTEXT_MAX_NODES",
+            "SECOND_BRAIN_RAG_CONTEXT_MAX_NODES",
+        ),
+    )
+    rag_context_max_chars: int = Field(
+        default=10_000,
+        ge=2_000,
+        le=200_000,
+        validation_alias=AliasChoices(
+            "RAG_CONTEXT_MAX_CHARS",
+            "SECOND_BRAIN_RAG_CONTEXT_MAX_CHARS",
+        ),
+    )
+    rag_knowledge_max_chars: int = Field(
+        default=1_200,
+        ge=200,
+        le=20_000,
+        validation_alias=AliasChoices(
+            "RAG_KNOWLEDGE_MAX_CHARS",
+            "SECOND_BRAIN_RAG_KNOWLEDGE_MAX_CHARS",
+        ),
+    )
+    rag_max_evidence_per_node: int = Field(
+        default=1,
+        ge=0,
+        le=10,
+        validation_alias=AliasChoices(
+            "RAG_MAX_EVIDENCE_PER_NODE",
+            "SECOND_BRAIN_RAG_MAX_EVIDENCE_PER_NODE",
+        ),
+    )
+    rag_evidence_max_chars: int = Field(
+        default=400,
+        ge=100,
+        le=10_000,
+        validation_alias=AliasChoices(
+            "RAG_EVIDENCE_MAX_CHARS",
+            "SECOND_BRAIN_RAG_EVIDENCE_MAX_CHARS",
+        ),
+    )
+    graph_neighbors_k: int = Field(
+        default=8,
+        ge=1,
+        le=50,
+        validation_alias=AliasChoices("GRAPH_NEIGHBORS_K", "SECOND_BRAIN_GRAPH_NEIGHBORS_K"),
+    )
+    graph_min_similarity: float = Field(
+        default=0.45,
+        ge=-1,
+        le=1,
+        validation_alias=AliasChoices(
+            "GRAPH_MIN_SIMILARITY",
+            "SECOND_BRAIN_GRAPH_MIN_SIMILARITY",
+        ),
+    )
+    graph_tag_weight: float = Field(
+        default=0.05,
+        ge=0,
+        le=0.2,
+        validation_alias=AliasChoices("GRAPH_TAG_WEIGHT", "SECOND_BRAIN_GRAPH_TAG_WEIGHT"),
+    )
+    graph_pca_dimensions: int = Field(
+        default=50,
+        ge=2,
+        le=512,
+        validation_alias=AliasChoices(
+            "GRAPH_PCA_DIMENSIONS",
+            "SECOND_BRAIN_GRAPH_PCA_DIMENSIONS",
+        ),
+    )
+    cluster_min_size: int = Field(
+        default=5,
+        ge=2,
+        le=1000,
+        validation_alias=AliasChoices("CLUSTER_MIN_SIZE", "SECOND_BRAIN_CLUSTER_MIN_SIZE"),
+    )
+    cluster_max_domains: int = Field(
+        default=6,
+        ge=2,
+        le=50,
+        validation_alias=AliasChoices(
+            "CLUSTER_MAX_DOMAINS",
+            "SECOND_BRAIN_CLUSTER_MAX_DOMAINS",
+        ),
+    )
+    cluster_max_themes_per_domain: int = Field(
+        default=6,
+        ge=2,
+        le=50,
+        validation_alias=AliasChoices(
+            "CLUSTER_MAX_THEMES_PER_DOMAIN",
+            "SECOND_BRAIN_CLUSTER_MAX_THEMES_PER_DOMAIN",
+        ),
+    )
+    cluster_min_silhouette: float = Field(
+        default=0.1,
+        ge=-1,
+        le=1,
+        validation_alias=AliasChoices(
+            "CLUSTER_MIN_SILHOUETTE",
+            "SECOND_BRAIN_CLUSTER_MIN_SILHOUETTE",
+        ),
+    )
+    cluster_noise_iqr_factor: float = Field(
+        default=1.5,
+        ge=0,
+        le=10,
+        validation_alias=AliasChoices(
+            "CLUSTER_NOISE_IQR_FACTOR",
+            "SECOND_BRAIN_CLUSTER_NOISE_IQR_FACTOR",
+        ),
+    )
+    cluster_label_batch_size: int = Field(
+        default=12,
+        ge=1,
+        le=50,
+        validation_alias=AliasChoices(
+            "CLUSTER_LABEL_BATCH_SIZE",
+            "SECOND_BRAIN_CLUSTER_LABEL_BATCH_SIZE",
+        ),
+    )
+    cluster_representative_count: int = Field(
+        default=5,
+        ge=1,
+        le=10,
+        validation_alias=AliasChoices(
+            "CLUSTER_REPRESENTATIVE_COUNT",
+            "SECOND_BRAIN_CLUSTER_REPRESENTATIVE_COUNT",
+        ),
+    )
+    umap_neighbors: int = Field(
+        default=15,
+        ge=2,
+        le=200,
+        validation_alias=AliasChoices("UMAP_NEIGHBORS", "SECOND_BRAIN_UMAP_NEIGHBORS"),
+    )
+    umap_min_dist: float = Field(
+        default=0.15,
+        ge=0,
+        le=0.99,
+        validation_alias=AliasChoices("UMAP_MIN_DIST", "SECOND_BRAIN_UMAP_MIN_DIST"),
+    )
+    umap_random_state: int = Field(
+        default=42,
+        ge=0,
+        le=2_147_483_647,
+        validation_alias=AliasChoices(
+            "UMAP_RANDOM_STATE",
+            "SECOND_BRAIN_UMAP_RANDOM_STATE",
         ),
     )
     qdrant_path: Path = Field(
@@ -258,6 +459,13 @@ class Settings(BaseSettings):
             resolved.relative_to(self.resolved_data_dir)
         except ValueError as error:
             raise ValueError("QDRANT_PATH doit rester dans SECOND_BRAIN_DATA_DIR") from error
+        if resolved == self.resolved_data_dir:
+            raise ValueError("QDRANT_PATH doit etre un sous-dossier dedie de SECOND_BRAIN_DATA_DIR")
+        originals_path = (self.resolved_data_dir / "originals").resolve()
+        if resolved.is_relative_to(originals_path) or originals_path.is_relative_to(resolved):
+            raise ValueError(
+                "QDRANT_PATH ne doit jamais chevaucher le dossier des fichiers originaux"
+            )
         return resolved
 
     @property
@@ -281,7 +489,9 @@ class Settings(BaseSettings):
 
     def create_data_directory(self) -> None:
         self.resolved_data_dir.mkdir(parents=True, exist_ok=True)
-        self.resolved_qdrant_path.mkdir(parents=True, exist_ok=True)
+        qdrant_path = self.resolved_qdrant_path
+        if not qdrant_path.exists():
+            qdrant_path.mkdir(parents=True, exist_ok=True)
 
         database_url = make_url(self.resolved_database_url)
         if (
@@ -289,7 +499,14 @@ class Settings(BaseSettings):
             and database_url.database
             and database_url.database != ":memory:"
         ):
-            Path(database_url.database).parent.mkdir(parents=True, exist_ok=True)
+            database_path = Path(database_url.database).resolve()
+            try:
+                database_path.relative_to(qdrant_path)
+            except ValueError:
+                pass
+            else:
+                raise ValueError("La base SQLite ne peut pas etre stockee dans QDRANT_PATH")
+            database_path.parent.mkdir(parents=True, exist_ok=True)
 
 
 @lru_cache

@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import pytest
 from pydantic import ValidationError
-from second_brain.llm.schemas import KnowledgeDraft, PassageAnalysis, SourceSummary
+from second_brain.llm.schemas import (
+    ClusterLabelBatch,
+    KnowledgeDraft,
+    PassageAnalysis,
+    SourceSummary,
+)
 
 
 def test_knowledge_draft_normalizes_and_deduplicates_tags() -> None:
@@ -70,3 +75,11 @@ def test_llm_schemas_reject_coerced_types_and_short_normalized_content() -> None
             tags=["bo#is"],
             passage_indices=[0],
         )
+
+
+def test_cluster_labels_allow_the_compact_label_only_format() -> None:
+    result = ClusterLabelBatch.model_validate(
+        {"labels": [{"cluster_key": "c0001", "label": "Gestion de la fatigue"}]}
+    )
+
+    assert result.labels[0].description is None

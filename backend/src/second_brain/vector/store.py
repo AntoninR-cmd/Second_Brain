@@ -51,6 +51,16 @@ class StoredVectorPoint:
 
 
 @dataclass(frozen=True, slots=True)
+class StoredVector:
+    """Validated vector read from the active derived index for offline math."""
+
+    knowledge_node_id: UUID
+    source_id: UUID
+    fingerprint: str
+    vector: tuple[float, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class VectorSearchHit:
     knowledge_node_id: UUID
     source_id: UUID
@@ -75,6 +85,12 @@ class VectorStore(Protocol):
         knowledge_node_ids: Sequence[UUID],
     ) -> list[StoredVectorPoint]: ...
 
+    async def retrieve_vectors(
+        self,
+        collection_name: str,
+        knowledge_node_ids: Sequence[UUID],
+    ) -> list[StoredVector]: ...
+
     async def search(
         self,
         collection_name: str,
@@ -92,5 +108,7 @@ class VectorStore(Protocol):
     async def list_point_ids(self, collection_name: str) -> set[UUID]: ...
 
     async def delete_collection(self, collection_name: str) -> None: ...
+
+    async def reset_storage(self) -> None: ...
 
     async def close(self) -> None: ...

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from second_brain.pipeline.chunking import SourceChunk
+    from second_brain.rag.answer_schema import RagMode
 
 PROMPT_PACKAGE = "second_brain.llm.prompts"
 _PLACEHOLDER = re.compile(r"\{\{([a-z_]+)\}\}")
@@ -51,6 +52,30 @@ def build_validation_retry_prompt(*, original_prompt: str, validation_error: str
         "retry_invalid_json.md",
         original_prompt=original_prompt,
         validation_error=validation_error[:2000],
+    )
+
+
+def rag_system_prompt(mode: RagMode) -> str:
+    filename = "rag_strict.md" if mode == "brain_only" else "rag_mixed.md"
+    return _load_prompt(filename)
+
+
+def build_rag_answer_prompt(*, question: str, knowledge_context: str) -> str:
+    return _render_prompt(
+        "rag_question.md",
+        question=question,
+        knowledge_context=knowledge_context,
+    )
+
+
+def cluster_label_system_prompt() -> str:
+    return _load_prompt("label_clusters_system.md")
+
+
+def build_cluster_label_prompt(*, cluster_context: str) -> str:
+    return _render_prompt(
+        "label_clusters.md",
+        cluster_context=cluster_context,
     )
 
 

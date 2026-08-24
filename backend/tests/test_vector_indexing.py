@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import time
 from collections.abc import Sequence
 from datetime import timedelta
 from uuid import UUID
@@ -37,6 +38,7 @@ from second_brain.vector.embeddings import (
     EmbeddingCallMetrics,
 )
 from second_brain.vector.store import (
+    StoredVector,
     StoredVectorPoint,
     VectorCollectionInfo,
     VectorPoint,
@@ -141,6 +143,23 @@ class FakeVectorStore:
         collection = self.points.get(collection_name, {})
         return [
             StoredVectorPoint(point.knowledge_node_id, point.source_id, point.fingerprint)
+            for node_id in knowledge_node_ids
+            if (point := collection.get(node_id)) is not None
+        ]
+
+    async def retrieve_vectors(
+        self,
+        collection_name: str,
+        knowledge_node_ids: Sequence[UUID],
+    ) -> list[StoredVector]:
+        collection = self.points.get(collection_name, {})
+        return [
+            StoredVector(
+                point.knowledge_node_id,
+                point.source_id,
+                point.fingerprint,
+                tuple(float(value) for value in point.vector),
+            )
             for node_id in knowledge_node_ids
             if (point := collection.get(node_id)) is not None
         ]
@@ -474,6 +493,10 @@ async def test_semantic_search_reloads_ranked_nodes_from_sqlite(settings: Settin
         assert [item.node.id for item in results.items] == [plastic.id, recovery.id]
         assert results.items[0].node.source.title == "Atelier"
         assert results.items[0].score > results.items[1].score
+        assert results.timings.embedding_seconds >= 0
+        assert results.timings.qdrant_seconds >= 0
+        assert results.timings.sqlite_seconds >= 0
+        assert results.timings.total_seconds >= results.timings.embedding_seconds
     finally:
         await database.dispose()
 
@@ -518,6 +541,86 @@ def test_vector_api_exposes_empty_search_and_persistent_job(
         assert unconfirmed.status_code == 422
 
     assert store.closed is True
+
+
+def test_vector_api_indexes_searches_and_rebuilds_complete_sqlite_nodes(
+    settings: Settings,
+) -> None:
+    async def seed() -> list[UUID]:
+        database = await _database(settings)
+        try:
+            return await _seed_nodes(database, 2)
+        finally:
+            await database.dispose()
+
+    node_ids = asyncio.run(seed())
+    provider = FakeEmbeddingProvider()
+    store = FakeVectorStore()
+    app = create_app(
+        settings,
+        embedding_provider=provider,
+        vector_store=store,
+        start_analysis_worker=False,
+        start_indexing_worker=True,
+    )
+
+    with TestClient(app) as client:
+        queued = client.post("/api/v1/vector-index/index")
+        assert queued.status_code == 202
+        first_job = _wait_http_vector_job(client, queued.json()["id"])
+        assert first_job["status"] == "succeeded"
+        assert first_job["progress_current"] == len(node_ids)
+
+        status_response = client.get("/api/v1/vector-index/status")
+        assert status_response.status_code == 200
+        first_status = status_response.json()
+        assert first_status["state"] == "ready"
+        assert first_status["indexed_nodes"] == len(node_ids)
+        assert first_status["active_profile"]["dimensions"] == 3
+
+        search = client.post(
+            "/api/v1/search/semantic",
+            json={"query": "Comment favoriser la recuperation ?", "top_k": 2},
+        )
+        assert search.status_code == 200
+        search_payload = search.json()
+        assert len(search_payload["items"]) == 2
+        assert {item["knowledge_node"]["id"] for item in search_payload["items"]} == {
+            str(node_id) for node_id in node_ids
+        }
+        assert all(item["source"]["title"] == "Source de test" for item in search_payload["items"])
+
+        rebuilt = client.post(
+            "/api/v1/vector-index/rebuild",
+            json={"confirm": True},
+        )
+        assert rebuilt.status_code == 202
+        rebuilt_job = _wait_http_vector_job(client, rebuilt.json()["id"])
+        assert rebuilt_job["status"] == "succeeded"
+
+        final_status = client.get("/api/v1/vector-index/status").json()
+        assert final_status["state"] == "ready"
+        assert final_status["indexed_nodes"] == len(node_ids)
+        assert final_status["active_profile"]["logical_generation"] == 2
+
+    assert store.closed is True
+
+
+def _wait_http_vector_job(
+    client: TestClient,
+    job_id: str,
+    *,
+    timeout_seconds: float = 3,
+) -> dict[str, object]:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        response = client.get(f"/api/v1/vector-index/jobs/{job_id}")
+        assert response.status_code == 200
+        payload = response.json()
+        if payload["status"] in {"succeeded", "failed"}:
+            return payload
+        time.sleep(0.02)
+    raise AssertionError(f"Le job vectoriel {job_id} n'a pas termine.")
 
 
 @pytest.mark.anyio

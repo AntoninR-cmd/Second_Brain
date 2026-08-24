@@ -22,6 +22,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from second_brain.db.base import Base, UTCDateTime, utc_now
 
 if TYPE_CHECKING:
+    from second_brain.db.models.brain import BrainProfile
     from second_brain.db.models.embedding import EmbeddingProfile
     from second_brain.db.models.source import Source
 
@@ -30,6 +31,8 @@ class ProcessingJobKind(str, Enum):
     ANALYZE_SOURCE = "analyze_source"
     INDEX_KNOWLEDGE = "index_knowledge"
     REBUILD_VECTOR_INDEX = "rebuild_vector_index"
+    BUILD_BRAIN = "build_brain"
+    RELABEL_BRAIN = "relabel_brain"
 
 
 class ProcessingJobStatus(str, Enum):
@@ -43,7 +46,8 @@ class ProcessingJob(Base):
     __tablename__ = "processing_jobs"
     __table_args__ = (
         CheckConstraint(
-            "kind IN ('analyze_source', 'index_knowledge', 'rebuild_vector_index')",
+            "kind IN ('analyze_source', 'index_knowledge', 'rebuild_vector_index', "
+            "'build_brain', 'relabel_brain')",
             name="processing_job_kind",
         ),
         CheckConstraint(
@@ -53,6 +57,10 @@ class ProcessingJob(Base):
         CheckConstraint(
             "kind != 'analyze_source' OR source_id IS NOT NULL",
             name="ck_processing_jobs_analysis_source",
+        ),
+        CheckConstraint(
+            "kind NOT IN ('build_brain', 'relabel_brain') OR brain_profile_id IS NOT NULL",
+            name="ck_processing_jobs_brain_profile",
         ),
         CheckConstraint(
             "progress_current >= 0",
@@ -108,6 +116,12 @@ class ProcessingJob(Base):
     embedding_profile_id: Mapped[UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("embedding_profiles.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    brain_profile_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("brain_profiles.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
@@ -245,6 +259,7 @@ class ProcessingJob(Base):
     embedding_profile: Mapped[EmbeddingProfile | None] = relationship(
         back_populates="processing_jobs"
     )
+    brain_profile: Mapped[BrainProfile | None] = relationship(back_populates="processing_jobs")
 
     @property
     def heartbeat_at(self) -> datetime:

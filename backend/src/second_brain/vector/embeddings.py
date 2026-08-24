@@ -121,14 +121,21 @@ class OllamaEmbeddingProvider:
             )
 
         try:
-            models = _read_model_names(response.json())
+            models = _read_models(response.json())
         except (TypeError, ValueError):
             return self._unready(
                 "invalid_response",
                 "Ollama a renvoye une liste de modeles illisible.",
             )
 
-        model_available = any(_model_names_match(self._model, model) for model in models)
+        model_names = [name for name, _digest in models]
+        configured_digest = next(
+            (digest for name, digest in models if _model_names_match(self._model, name)),
+            None,
+        )
+        model_available = configured_digest is not None or any(
+            _model_names_match(self._model, model) for model in model_names
+        )
         if model_available:
             message = f"Ollama et le modele d'embedding {self._model} sont disponibles."
         else:
@@ -139,8 +146,9 @@ class OllamaEmbeddingProvider:
         return OllamaReadiness(
             ollama_available=True,
             configured_model=self._model,
+            configured_model_digest=configured_digest,
             model_available=model_available,
-            available_models=models,
+            available_models=model_names,
             error_code=None,
             message=message,
         )
@@ -278,6 +286,7 @@ class OllamaEmbeddingProvider:
         return OllamaReadiness(
             ollama_available=False,
             configured_model=self._model,
+            configured_model_digest=None,
             model_available=False,
             available_models=[],
             error_code=error_code,
@@ -342,10 +351,10 @@ def _read_embedding_vectors(
     return tuple(vectors)
 
 
-def _read_model_names(payload: object) -> list[str]:
+def _read_models(payload: object) -> list[tuple[str, str | None]]:
     if not isinstance(payload, dict) or not isinstance(payload.get("models"), list):
         raise ValueError("le champ models est absent")
-    names: list[str] = []
+    models: list[tuple[str, str | None]] = []
     for item in payload["models"]:
         if not isinstance(item, dict):
             raise ValueError("une entree de modele est invalide")
@@ -353,9 +362,11 @@ def _read_model_names(payload: object) -> list[str]:
         if not isinstance(name, str) or not name.strip():
             raise ValueError("un nom de modele est invalide")
         normalized_name = name.strip()
-        if normalized_name not in names:
-            names.append(normalized_name)
-    return names
+        raw_digest = item.get("digest")
+        digest = raw_digest.strip() if isinstance(raw_digest, str) and raw_digest.strip() else None
+        if not any(existing_name == normalized_name for existing_name, _ in models):
+            models.append((normalized_name, digest))
+    return models
 
 
 def _model_names_match(configured: str, available: str) -> bool:

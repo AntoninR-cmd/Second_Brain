@@ -14,10 +14,14 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     Uuid,
+    event,
+    inspect,
     text,
+    update,
 )
 from sqlalchemy import Enum as SqlEnum
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.engine import Connection
+from sqlalchemy.orm import Mapped, Mapper, mapped_column, relationship
 
 from second_brain.db.base import Base, UTCDateTime, utc_now
 
@@ -233,3 +237,28 @@ class KnowledgeEmbedding(Base):
 
     knowledge_node: Mapped[KnowledgeNode] = relationship(back_populates="embeddings")
     profile: Mapped[EmbeddingProfile] = relationship(back_populates="knowledge_embeddings")
+
+
+from second_brain.db.models.knowledge import KnowledgeNode  # noqa: E402
+
+
+@event.listens_for(KnowledgeNode, "after_update")
+def mark_node_embeddings_stale(
+    mapper: Mapper[KnowledgeNode],
+    connection: Connection,
+    target: KnowledgeNode,
+) -> None:
+    """Persist staleness when semantic title/content changes through the ORM."""
+
+    del mapper
+    state = inspect(target)
+    if not (state.attrs.title.history.has_changes() or state.attrs.content.history.has_changes()):
+        return
+    connection.execute(
+        update(KnowledgeEmbedding)
+        .where(KnowledgeEmbedding.knowledge_node_id == target.id)
+        .values(
+            status=KnowledgeEmbeddingStatus.STALE,
+            updated_at=utc_now(),
+        )
+    )

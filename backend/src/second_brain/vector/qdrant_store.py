@@ -1,18 +1,23 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import math
+import pickle
+import shutil
+import sqlite3
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
 from typing import TypeVar
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from qdrant_client import QdrantClient, models
 
 from second_brain.vector.store import (
+    StoredVector,
     StoredVectorPoint,
     VectorCollectionInfo,
     VectorPoint,
@@ -25,13 +30,21 @@ from second_brain.vector.store import (
 
 ResultT = TypeVar("ResultT")
 logger = logging.getLogger(__name__)
+_OWNER_MARKER = ".second-brain-qdrant"
 
 
 class QdrantVectorStore:
     """Persistent local Qdrant isolated on one dedicated worker thread."""
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, *, reset_root: Path | None = None) -> None:
         self._path = path.resolve()
+        self._reset_root = (reset_root or self._path.parent).resolve()
+        try:
+            self._path.relative_to(self._reset_root)
+        except ValueError as error:
+            raise ValueError("Le stockage Qdrant doit rester dans sa racine dediee.") from error
+        if self._path == self._reset_root:
+            raise ValueError("Le stockage Qdrant doit etre un sous-dossier dedie.")
         self._executor = ThreadPoolExecutor(
             max_workers=1,
             thread_name_prefix="second-brain-qdrant",
@@ -108,6 +121,34 @@ class QdrantVectorStore:
         )
         return [_stored_point(record.id, record.payload) for record in records]
 
+    async def retrieve_vectors(
+        self,
+        collection_name: str,
+        knowledge_node_ids: Sequence[UUID],
+    ) -> list[StoredVector]:
+        """Read existing vectors in bounded batches without exposing Qdrant upstream."""
+
+        _validate_collection_name(collection_name)
+        if not knowledge_node_ids:
+            return []
+        ordered_ids = list(dict.fromkeys(knowledge_node_ids))
+
+        def retrieve_all(client: QdrantClient) -> list[StoredVector]:
+            result: list[StoredVector] = []
+            for start in range(0, len(ordered_ids), 256):
+                records = client.retrieve(
+                    collection_name=collection_name,
+                    ids=[str(node_id) for node_id in ordered_ids[start : start + 256]],
+                    with_payload=True,
+                    with_vectors=True,
+                )
+                result.extend(
+                    _stored_vector(record.id, record.payload, record.vector) for record in records
+                )
+            return result
+
+        return await self._run("retrieve_vectors", retrieve_all)
+
     async def search(
         self,
         collection_name: str,
@@ -181,6 +222,23 @@ class QdrantVectorStore:
 
         await self._run("delete_collection", delete_if_present)
 
+    async def reset_storage(self) -> None:
+        """Atomically replace only the reconstructible local Qdrant directory."""
+
+        if self._closed:
+            raise VectorStoreUnavailableError("L'index vectoriel local est ferme.")
+        loop = asyncio.get_running_loop()
+        try:
+            await loop.run_in_executor(self._executor, self._reset_storage)
+        except VectorStoreError:
+            raise
+        except Exception as error:
+            logger.error(
+                "Qdrant local reset failed error_type=%s",
+                type(error).__name__,
+            )
+            raise _translated_error(error) from error
+
     async def close(self) -> None:
         if self._closed:
             return
@@ -217,13 +275,71 @@ class QdrantVectorStore:
     def _invoke(self, callback: Callable[[QdrantClient], ResultT]) -> ResultT:
         if self._client is None:
             self._path.parent.mkdir(parents=True, exist_ok=True)
-            self._client = QdrantClient(path=str(self._path))
+            self._assert_adoptable_path()
+            candidate = QdrantClient(path=str(self._path))
+            try:
+                candidate.get_collections()
+                (self._path / _OWNER_MARKER).touch(exist_ok=True)
+            except Exception:
+                candidate.close()
+                raise
+            self._client = candidate
         return callback(self._client)
 
     def _close_client(self) -> None:
         if self._client is not None:
             self._client.close()
             self._client = None
+
+    def _reset_storage(self) -> None:
+        self._close_client()
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        marker = self._path / _OWNER_MARKER
+        if self._path.exists() and not marker.is_file():
+            raise VectorStoreCorruptedError(
+                "Le dossier Qdrant n'est pas marque comme index derive Second Brain. "
+                "Reconstruction automatique refusee pour proteger les fichiers utilisateur."
+            )
+        quarantine = self._path.with_name(f".{self._path.name}.reset-{uuid4().hex}")
+        moved = False
+        if self._path.exists():
+            self._path.replace(quarantine)
+            moved = True
+        try:
+            candidate = QdrantClient(path=str(self._path))
+            try:
+                candidate.get_collections()
+                (self._path / _OWNER_MARKER).touch(exist_ok=True)
+            finally:
+                candidate.close()
+        except Exception:
+            _remove_exact_path(self._path)
+            if moved:
+                quarantine.replace(self._path)
+            raise
+        if moved:
+            try:
+                _remove_exact_path(quarantine)
+            except OSError:
+                logger.warning("Qdrant reset quarantine cleanup failed")
+
+    def _assert_adoptable_path(self) -> None:
+        if not self._path.exists():
+            return
+        if not self._path.is_dir():
+            raise VectorStoreCorruptedError(
+                "QDRANT_PATH n'est pas un dossier d'index vectoriel valide et doit etre "
+                "reconstruit. SQLite reste intacte."
+            )
+        entries = {entry.name for entry in self._path.iterdir()}
+        if not entries or _OWNER_MARKER in entries:
+            return
+        if "meta.json" in entries and "collection" in entries:
+            return
+        raise VectorStoreCorruptedError(
+            "QDRANT_PATH contient des fichiers qui ne sont pas un index Second Brain. "
+            "SQLite reste intacte."
+        )
 
 
 def _inspect_collection(
@@ -269,6 +385,28 @@ def _stored_point(point_id: models.ExtendedPointId, payload: object) -> StoredVe
         knowledge_node_id=knowledge_node_id,
         source_id=source_id,
         fingerprint=fingerprint,
+    )
+
+
+def _stored_vector(
+    point_id: models.ExtendedPointId,
+    payload: object,
+    raw_vector: object,
+) -> StoredVector:
+    knowledge_node_id, source_id, fingerprint = _validated_payload(point_id, payload)
+    if not isinstance(raw_vector, list):
+        raise VectorStoreCorruptedError(
+            "Un point Qdrant ne contient pas de vecteur dense exploitable."
+        )
+    try:
+        vector = tuple(_validated_vector(raw_vector))
+    except ValueError as error:
+        raise VectorStoreCorruptedError("Un point Qdrant contient un vecteur invalide.") from error
+    return StoredVector(
+        knowledge_node_id=knowledge_node_id,
+        source_id=source_id,
+        fingerprint=fingerprint,
+        vector=vector,
     )
 
 
@@ -339,6 +477,10 @@ def _validate_collection_name(collection_name: str) -> None:
 
 
 def _translated_error(error: Exception) -> VectorStoreError:
+    if isinstance(error, (json.JSONDecodeError, pickle.UnpicklingError, sqlite3.DatabaseError)):
+        return VectorStoreCorruptedError(
+            "L'index Qdrant local est illisible et doit etre reconstruit."
+        )
     normalized = str(error).casefold()
     corruption_markers = (
         "corrupt",
@@ -346,6 +488,10 @@ def _translated_error(error: Exception) -> VectorStoreError:
         "invalid load key",
         "malformed",
         "unpickl",
+        "not a directory",
+        "is not a directory",
+        "file exists",
+        "cannot create a file when that file already exists",
     )
     if any(marker in normalized for marker in corruption_markers):
         return VectorStoreCorruptedError(
@@ -354,3 +500,12 @@ def _translated_error(error: Exception) -> VectorStoreError:
     return VectorStoreUnavailableError(
         "L'index Qdrant local est indisponible. Les donnees SQLite restent intactes."
     )
+
+
+def _remove_exact_path(path: Path) -> None:
+    if not path.exists():
+        return
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    else:
+        path.unlink()

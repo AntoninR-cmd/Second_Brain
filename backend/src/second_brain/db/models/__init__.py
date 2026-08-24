@@ -1,3 +1,12 @@
+from second_brain.db.models.brain import (
+    BrainCluster,
+    BrainEdge,
+    BrainLabelSource,
+    BrainLabelStrategy,
+    BrainNodeLayout,
+    BrainProfile,
+    BrainProfileStatus,
+)
 from second_brain.db.models.embedding import (
     EmbeddingDistance,
     EmbeddingProfile,
@@ -28,6 +37,13 @@ from second_brain.db.models.taxonomy import KnowledgeNodeTag, Tag
 
 __all__ = [
     "AnalysisStatus",
+    "BrainCluster",
+    "BrainEdge",
+    "BrainLabelSource",
+    "BrainLabelStrategy",
+    "BrainNodeLayout",
+    "BrainProfile",
+    "BrainProfileStatus",
     "EmbeddingDistance",
     "EmbeddingProfile",
     "EmbeddingProfileStatus",

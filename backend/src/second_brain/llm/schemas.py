@@ -94,9 +94,38 @@ class SourceSummary(StrictLLMSchema):
         return normalized
 
 
+class ClusterLabel(StrictLLMSchema):
+    cluster_key: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,63}$")
+    label: str = Field(min_length=3, max_length=80)
+    description: str | None = Field(default=None, min_length=10, max_length=120)
+
+    @field_validator("label", "description", mode="before")
+    @classmethod
+    def normalize_cluster_text(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        normalized = re.sub(r"\s+", " ", value).strip()
+        if not normalized:
+            raise ValueError("le texte du cluster ne peut pas etre vide")
+        return normalized
+
+
+class ClusterLabelBatch(StrictLLMSchema):
+    labels: list[ClusterLabel] = Field(min_length=1, max_length=50)
+
+    @field_validator("labels")
+    @classmethod
+    def validate_unique_cluster_keys(cls, value: list[ClusterLabel]) -> list[ClusterLabel]:
+        keys = [item.cluster_key for item in value]
+        if len(keys) != len(set(keys)):
+            raise ValueError("les identifiants de clusters doivent etre uniques")
+        return value
+
+
 class OllamaReadiness(StrictLLMSchema):
     ollama_available: bool
     configured_model: str
+    configured_model_digest: str | None = None
     model_available: bool
     available_models: list[str] = Field(default_factory=list)
     error_code: Literal["unavailable", "timeout", "http_error", "invalid_response"] | None = None

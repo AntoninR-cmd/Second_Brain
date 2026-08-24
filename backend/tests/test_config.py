@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from second_brain.core.config import Settings
 
 
@@ -62,3 +63,40 @@ def test_qdrant_path_is_resolved_inside_data_directory(tmp_path: Path) -> None:
 
     assert settings.resolved_qdrant_path == (tmp_path / "data" / "derived-vectors").resolve()
     assert settings.resolved_qdrant_path.is_dir()
+
+
+def test_qdrant_path_must_be_a_dedicated_child_of_data_directory(tmp_path: Path) -> None:
+    settings = Settings(
+        _env_file=None,
+        data_dir=tmp_path / "data",
+        qdrant_path=Path("."),
+    )
+
+    with pytest.raises(ValueError, match="sous-dossier dedie"):
+        settings.create_data_directory()
+
+
+def test_qdrant_path_cannot_overlap_original_source_files(tmp_path: Path) -> None:
+    settings = Settings(
+        _env_file=None,
+        data_dir=tmp_path / "data",
+        qdrant_path=Path("originals"),
+    )
+
+    with pytest.raises(ValueError, match="fichiers originaux"):
+        settings.create_data_directory()
+
+
+def test_sqlite_database_cannot_be_inside_reconstructible_qdrant_path(
+    tmp_path: Path,
+) -> None:
+    qdrant_path = tmp_path / "data" / "qdrant"
+    settings = Settings(
+        _env_file=None,
+        data_dir=tmp_path / "data",
+        qdrant_path=qdrant_path,
+        database_url=(f"sqlite+aiosqlite:///{(qdrant_path / 'second_brain.sqlite3').as_posix()}"),
+    )
+
+    with pytest.raises(ValueError, match="SQLite"):
+        settings.create_data_directory()

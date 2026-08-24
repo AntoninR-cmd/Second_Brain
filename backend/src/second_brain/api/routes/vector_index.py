@@ -60,6 +60,9 @@ async def vector_index_status(
         active_job=(
             _job_out(snapshot.active_job, settings) if snapshot.active_job is not None else None
         ),
+        latest_job=(
+            _job_out(snapshot.latest_job, settings) if snapshot.latest_job is not None else None
+        ),
         error=snapshot.error,
     )
 
@@ -136,9 +139,13 @@ def _profile_out(profile: EmbeddingProfile | None) -> EmbeddingProfileOut | None
     return EmbeddingProfileOut(
         id=profile.id,
         model_name=profile.model_name,
+        model_digest=profile.model_digest,
         dimensions=profile.dimensions,
         distance=profile.distance.value,
+        semantic_text_version=profile.semantic_text_version,
         logical_generation=profile.logical_generation,
+        status=profile.status.value,
+        error_message=profile.error_message,
     )
 
 

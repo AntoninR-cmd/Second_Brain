@@ -27,6 +27,8 @@ GenerationCallType = Literal[
     "passage_analysis",
     "hierarchical_summary",
     "final_summary",
+    "rag_answer",
+    "cluster_labeling",
 ]
 GenerationOutcome = Literal[
     "success",
@@ -98,14 +100,25 @@ class OllamaTextGenerator:
             "passage_analysis": settings.ollama_extraction_temperature,
             "hierarchical_summary": settings.ollama_temperature,
             "final_summary": settings.ollama_temperature,
+            "rag_answer": settings.ollama_rag_temperature,
+            "cluster_labeling": settings.ollama_cluster_label_temperature,
         }
         self._keep_alive = settings.ollama_keep_alive
-        self._validation_retries = settings.extraction_max_retries
+        self._validation_retries: dict[GenerationCallType, int] = {
+            "passage_analysis": settings.extraction_max_retries,
+            "hierarchical_summary": settings.extraction_max_retries,
+            "final_summary": settings.extraction_max_retries,
+            # Une question RAG correspond a un seul appel generatif principal.
+            "rag_answer": 0,
+            "cluster_labeling": settings.extraction_max_retries,
+        }
         self._max_knowledge_per_passage = settings.extraction_max_knowledge_per_passage
         self._num_predict: dict[GenerationCallType, int] = {
             "passage_analysis": settings.ollama_num_predict_passage_analysis,
             "hierarchical_summary": settings.ollama_num_predict_hierarchical_summary,
             "final_summary": settings.ollama_num_predict_final_summary,
+            "rag_answer": settings.ollama_num_predict_rag,
+            "cluster_labeling": settings.ollama_num_predict_cluster_labels,
         }
         self._transport = transport
 
@@ -183,7 +196,8 @@ class OllamaTextGenerator:
         current_prompt = grounded_prompt
         last_detail: str | None = None
 
-        for attempt in range(self._validation_retries + 1):
+        validation_retries = self._validation_retries[call_type]
+        for attempt in range(validation_retries + 1):
             started_at = perf_counter()
             try:
                 response = await self._request(
@@ -261,7 +275,7 @@ class OllamaTextGenerator:
 
             if validation_detail is not None:
                 last_detail = validation_detail
-                if attempt >= self._validation_retries:
+                if attempt >= validation_retries:
                     _record_generation_attempt(
                         call_type=call_type,
                         attempt=attempt,
