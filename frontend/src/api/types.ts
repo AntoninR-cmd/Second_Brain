@@ -157,6 +157,103 @@ export interface VectorIndexStatus {
   error: string | null;
 }
 
+export type BrainState =
+  | "empty"
+  | "not_built"
+  | "building"
+  | "ready"
+  | "stale"
+  | "error"
+  | "vector_index_required"
+  | "unavailable";
+
+export type BrainProfileStatus = "building" | "ready" | "stale" | "error";
+
+export interface BrainSimilarityStats {
+  minimum: number | null;
+  mean: number | null;
+  median: number | null;
+  maximum: number | null;
+}
+
+export interface BrainClusterSizeStats {
+  minimum: number | null;
+  mean: number | null;
+  maximum: number | null;
+}
+
+export interface BrainProfile {
+  id: string;
+  logical_generation: number;
+  status: BrainProfileStatus;
+  embedding_profile_id: string | null;
+  embedding_provider: string;
+  embedding_model_name: string;
+  embedding_model_digest: string | null;
+  embedding_dimensions: number;
+  embedding_semantic_text_version: string;
+  embedding_logical_generation: number;
+  algorithm_version: string;
+  knowledge_node_count: number;
+  cluster_count: number;
+  edge_count: number;
+  unassigned_node_count: number;
+  cluster_counts_by_level: Record<string, number>;
+  similarity: BrainSimilarityStats;
+  cluster_sizes: BrainClusterSizeStats;
+  relations_duration_ms: number;
+  clustering_duration_ms: number;
+  umap_duration_ms: number;
+  labeling_duration_ms: number;
+  total_duration_ms: number;
+  label_strategy: "deterministic" | "ollama" | "mixed";
+  label_model_name: string | null;
+  label_model_digest: string | null;
+  created_at: string;
+  completed_at: string | null;
+  activated_at: string | null;
+  error_message: string | null;
+}
+
+export interface BrainJob {
+  id: string;
+  brain_profile_id: string | null;
+  kind: "build_brain" | "relabel_brain";
+  status: ProcessingJobStatus;
+  stage: string | null;
+  progress_current: number;
+  progress_total: number;
+  progress_percent: number;
+  progress_message: string | null;
+  error_message: string | null;
+  error_code: string | null;
+  error_type: string | null;
+  error_detail: string | null;
+  error_stage: string | null;
+  attempt_count: number;
+  llm_call_count: number;
+  llm_retry_count: number;
+  llm_duration_ms: number;
+  created_at: string;
+  updated_at: string;
+  last_activity_at: string;
+  is_stale: boolean;
+  started_at: string | null;
+  finished_at: string | null;
+}
+
+export interface BrainStatus {
+  state: BrainState;
+  active_profile: BrainProfile | null;
+  building_profile: BrainProfile | null;
+  active_job: BrainJob | null;
+  latest_job: BrainJob | null;
+  stale_reasons: string[];
+  can_rebuild: boolean;
+  can_relabel: boolean;
+  error: string | null;
+}
+
 export type ProcessingJobStatus =
   | "pending"
   | "running"

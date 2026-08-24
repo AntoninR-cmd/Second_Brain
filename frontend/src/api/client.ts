@@ -1,5 +1,7 @@
 import type {
   AnalysisJob,
+  BrainJob,
+  BrainStatus,
   DashboardResponse,
   FileSourceInput,
   HealthResponse,
@@ -103,6 +105,34 @@ export function getVectorJob(jobId: string): Promise<VectorJob> {
   return request<VectorJob>(
     `/vector-index/jobs/${encodeURIComponent(jobId)}`,
   );
+}
+
+export function getBrainStatus(): Promise<BrainStatus> {
+  return request<BrainStatus>("/brain/status");
+}
+
+export function rebuildBrain(): Promise<BrainJob> {
+  return request<BrainJob>("/brain/rebuild", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ confirm: true }),
+  });
+}
+
+export function relabelBrain(): Promise<BrainJob> {
+  return request<BrainJob>("/brain/relabel", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ confirm: true }),
+  });
+}
+
+export function getBrainJob(jobId: string): Promise<BrainJob> {
+  return request<BrainJob>(`/brain/jobs/${encodeURIComponent(jobId)}`);
 }
 
 export function searchSemantically(

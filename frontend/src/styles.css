@@ -1622,6 +1622,173 @@ textarea:focus {
   font-size: 0.76rem;
 }
 
+.availability-badge.is-neutral {
+  background: #f1f3f7;
+  color: #667085;
+}
+
+.brain-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-subtle);
+}
+
+.brain-stat-grid > div {
+  min-width: 0;
+  padding: 1rem;
+  border-right: 1px solid var(--border);
+  text-align: center;
+}
+
+.brain-stat-grid > div:last-child {
+  border-right: 0;
+}
+
+.brain-stat-grid dt,
+.brain-duration-grid dt,
+.brain-inline-stats dt {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.brain-stat-grid dd {
+  margin: 0.25rem 0 0;
+  color: var(--text);
+  font-size: 1.4rem;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+}
+
+.brain-profile-list {
+  border-bottom: 1px solid var(--border);
+}
+
+.brain-metrics-section {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.brain-metrics-section > div {
+  min-width: 0;
+  padding: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  background: var(--surface-subtle);
+}
+
+.brain-metrics-section h3 {
+  margin: 0 0 0.7rem;
+  font-size: 0.82rem;
+}
+
+.brain-metrics-section p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.brain-level-list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.brain-inline-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0;
+}
+
+.brain-inline-stats > div {
+  min-width: 0;
+}
+
+.brain-inline-stats dd {
+  margin: 0.12rem 0 0;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.brain-duration-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.brain-duration-grid > div {
+  min-width: 0;
+  padding: 0.85rem 1rem;
+  border-right: 1px solid var(--border);
+  text-align: center;
+}
+
+.brain-duration-grid > div:last-child {
+  border-right: 0;
+  background: var(--surface-subtle);
+}
+
+.brain-duration-grid dd {
+  margin: 0.2rem 0 0;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.brain-empty-state {
+  margin: 0;
+  padding: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.brain-empty-state p {
+  margin: 0.4rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.brain-stale-warning,
+.brain-progress {
+  margin: 1rem 1.25rem 0;
+}
+
+.brain-stale-warning ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.8rem;
+}
+
+.brain-stale-warning li + li {
+  margin-top: 0.25rem;
+}
+
+.brain-model-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  padding: 1.25rem 1.25rem 0;
+}
+
+.brain-model-safety-note {
+  margin: 0;
+  padding: 0.8rem 1.25rem 1.25rem;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
 .semantic-search-form {
   margin-bottom: 1.25rem;
   padding: 1.25rem;
@@ -2334,6 +2501,15 @@ textarea:focus {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .brain-stat-grid,
+  .brain-duration-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .brain-metrics-section {
+    grid-template-columns: 1fr;
+  }
+
   .index-stat-grid > div {
     border-bottom: 1px solid var(--border);
   }
@@ -2346,6 +2522,26 @@ textarea:focus {
     grid-column: 1 / -1;
     border-right: 0;
     border-bottom: 0;
+  }
+
+  .brain-stat-grid > div,
+  .brain-duration-grid > div {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .brain-stat-grid > div:nth-child(2n),
+  .brain-duration-grid > div:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .brain-stat-grid > div:nth-last-child(-n + 2),
+  .brain-duration-grid > div:last-child {
+    border-bottom: 0;
+  }
+
+  .brain-duration-grid > div:last-child {
+    grid-column: 1 / -1;
+    border-right: 0;
   }
 
   .metadata-list {
@@ -2475,13 +2671,16 @@ textarea:focus {
   }
 
   .semantic-search-controls,
-  .index-stat-grid {
+  .index-stat-grid,
+  .brain-stat-grid,
+  .brain-duration-grid {
     grid-template-columns: 1fr;
   }
 
   .semantic-search-controls .button,
   .search-index-notice .button,
-  .vector-index-actions .button {
+  .vector-index-actions .button,
+  .brain-model-actions .button {
     width: 100%;
   }
 
@@ -2492,6 +2691,21 @@ textarea:focus {
 
   .index-stat-grid > div:last-child {
     grid-column: auto;
+    border-bottom: 0;
+  }
+
+  .brain-stat-grid > div,
+  .brain-stat-grid > div:nth-child(2n),
+  .brain-duration-grid > div,
+  .brain-duration-grid > div:nth-child(2n),
+  .brain-duration-grid > div:last-child {
+    grid-column: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .brain-stat-grid > div:last-child,
+  .brain-duration-grid > div:last-child {
     border-bottom: 0;
   }
 
