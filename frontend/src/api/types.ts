@@ -86,6 +86,77 @@ export interface SystemReadinessResponse {
   ollama: OllamaReadiness;
 }
 
+export type VectorIndexState =
+  | "empty"
+  | "not_built"
+  | "building"
+  | "ready"
+  | "stale"
+  | "incompatible"
+  | "unavailable"
+  | "corrupt";
+
+export interface EmbeddingReadiness {
+  ollama_available: boolean;
+  configured_model: string;
+  model_available: boolean;
+  error: string | null;
+}
+
+export interface EmbeddingProfile {
+  id: string;
+  model_name: string;
+  model_digest: string | null;
+  dimensions: number | null;
+  distance: "cosine";
+  semantic_text_version: string;
+  logical_generation: number;
+  status: "building" | "active" | "retired" | "failed";
+  error_message: string | null;
+}
+
+export interface VectorJob {
+  id: string;
+  kind: "index_knowledge" | "rebuild_vector_index";
+  status: ProcessingJobStatus;
+  stage: string | null;
+  progress_current: number;
+  progress_total: number;
+  progress_percent: number;
+  progress_message: string | null;
+  error_message: string | null;
+  error_code: string | null;
+  error_type: string | null;
+  error_detail: string | null;
+  attempt_count: number;
+  embedding_batch_count: number;
+  embedding_item_count: number;
+  embedding_duration_ms: number;
+  embedding_total_duration_ns: number;
+  embedding_prompt_eval_count: number;
+  created_at: string;
+  updated_at: string;
+  last_activity_at: string;
+  is_stale: boolean;
+  started_at: string | null;
+  finished_at: string | null;
+}
+
+export interface VectorIndexStatus {
+  state: VectorIndexState;
+  configured_model: string;
+  embedding: EmbeddingReadiness;
+  total_nodes: number;
+  indexed_nodes: number;
+  pending_or_stale_nodes: number;
+  failed_nodes: number;
+  orphan_points: number;
+  active_profile: EmbeddingProfile | null;
+  active_job: VectorJob | null;
+  latest_job: VectorJob | null;
+  error: string | null;
+}
+
 export type ProcessingJobStatus =
   | "pending"
   | "running"
@@ -167,4 +238,68 @@ export interface KnowledgeEvidence {
 export interface KnowledgeNodeDetail extends KnowledgeNodeSummary {
   source: KnowledgeSourceReference;
   evidences: KnowledgeEvidence[];
+}
+
+export interface SemanticSearchInput {
+  query: string;
+  top_k?: number;
+}
+
+export interface SemanticSearchResult {
+  score: number;
+  href: string;
+  knowledge_node: KnowledgeNodeSummary;
+  source: KnowledgeSourceReference;
+  evidences: KnowledgeEvidence[];
+}
+
+export interface SemanticSearchResponse {
+  query: string;
+  items: SemanticSearchResult[];
+  profile: {
+    model_name: string;
+    dimensions: number;
+    distance: "cosine";
+  } | null;
+}
+
+export type RagMode = "brain_only" | "brain_plus_model";
+
+export interface RagAnswerInput {
+  question: string;
+  mode: RagMode;
+  top_k?: number;
+}
+
+export interface RagKnowledge extends SemanticSearchResult {
+  context_id: string | null;
+  provided_to_model: boolean;
+  used: boolean;
+}
+
+export interface RagTimings {
+  readiness_ms: number;
+  embedding_ms: number;
+  qdrant_ms: number;
+  retrieval_sqlite_ms: number;
+  context_build_ms: number;
+  generation_ms: number;
+  provenance_validation_ms: number;
+  total_ms: number;
+  prompt_eval_count: number | null;
+  eval_count: number | null;
+}
+
+export interface RagAnswerResponse {
+  request_id: string;
+  question: string;
+  mode: RagMode;
+  answer: string;
+  model_additions: string | null;
+  insufficient_context: boolean;
+  generation_model: string;
+  retrieved_knowledge: RagKnowledge[];
+  used_knowledge: RagKnowledge[];
+  timings: RagTimings;
+  citation_format: string;
 }

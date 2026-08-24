@@ -5,6 +5,7 @@ import { AddPage } from "../pages/AddPage";
 import { DashboardPage } from "../pages/DashboardPage";
 import { KnowledgeDetailPage } from "../pages/KnowledgeDetailPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
+import { SearchPage } from "../pages/SearchPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { SourceDetailPage } from "../pages/SourceDetailPage";
 import { SourcesPage } from "../pages/SourcesPage";
@@ -19,6 +20,7 @@ export const router = createBrowserRouter([
       { path: "sources", element: <SourcesPage /> },
       { path: "sources/:sourceId", element: <SourceDetailPage /> },
       { path: "connaissances/:nodeId", element: <KnowledgeDetailPage /> },
+      { path: "recherche", element: <SearchPage /> },
       { path: "parametres", element: <SettingsPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],

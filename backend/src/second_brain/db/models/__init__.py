@@ -1,3 +1,10 @@
+from second_brain.db.models.embedding import (
+    EmbeddingDistance,
+    EmbeddingProfile,
+    EmbeddingProfileStatus,
+    KnowledgeEmbedding,
+    KnowledgeEmbeddingStatus,
+)
 from second_brain.db.models.knowledge import KnowledgeEvidence, KnowledgeNode
 from second_brain.db.models.processing import (
     ProcessingJob,
@@ -21,7 +28,12 @@ from second_brain.db.models.taxonomy import KnowledgeNodeTag, Tag
 
 __all__ = [
     "AnalysisStatus",
+    "EmbeddingDistance",
+    "EmbeddingProfile",
+    "EmbeddingProfileStatus",
     "KnowledgeEvidence",
+    "KnowledgeEmbedding",
+    "KnowledgeEmbeddingStatus",
     "KnowledgeNode",
     "KnowledgeNodeTag",
     "ProcessingJob",

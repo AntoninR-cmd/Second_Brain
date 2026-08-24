@@ -95,3 +95,32 @@ def test_latest_source_analysis_returns_the_most_recent_job(settings: Settings) 
     assert second["id"] != first["id"]
     assert latest.status_code == 200
     assert latest.json()["id"] == second["id"]
+
+
+def test_analysis_job_route_does_not_expose_vector_jobs(settings: Settings) -> None:
+    app = create_app(
+        settings,
+        text_generator=ReadyTextGenerator(),
+        start_analysis_worker=False,
+    )
+    with TestClient(app) as client:
+        vector_job_id = uuid4().hex
+        database_path = settings.resolved_data_dir / "second_brain.sqlite3"
+        with sqlite3.connect(database_path) as connection:
+            connection.execute(
+                """
+                INSERT INTO processing_jobs (
+                    id, source_id, kind, status, stage, progress_current,
+                    progress_total, progress_percent, attempt_count,
+                    created_at, updated_at, last_activity_at
+                ) VALUES (?, NULL, 'index_knowledge', 'pending', 'queued',
+                          0, 1, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+                          CURRENT_TIMESTAMP)
+                """,
+                (vector_job_id,),
+            )
+
+        response = client.get(f"/api/v1/jobs/{vector_job_id}")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Traitement introuvable."

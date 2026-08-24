@@ -6,10 +6,16 @@ import type {
   KnowledgeNodeDetail,
   KnowledgeNodeListResponse,
   ManualSourceInput,
+  RagAnswerInput,
+  RagAnswerResponse,
+  SemanticSearchInput,
+  SemanticSearchResponse,
   SourceDetail,
   SourceListResponse,
   SourceSegmentListResponse,
   SystemReadinessResponse,
+  VectorIndexStatus,
+  VectorJob,
 } from "./types";
 
 const API_PREFIX = "/api/v1";
@@ -73,6 +79,54 @@ export function getHealth(): Promise<HealthResponse> {
 
 export function getSystemReadiness(): Promise<SystemReadinessResponse> {
   return request<SystemReadinessResponse>("/system/readiness");
+}
+
+export function getVectorIndexStatus(): Promise<VectorIndexStatus> {
+  return request<VectorIndexStatus>("/vector-index/status");
+}
+
+export function indexKnowledgeNodes(): Promise<VectorJob> {
+  return request<VectorJob>("/vector-index/index", { method: "POST" });
+}
+
+export function rebuildVectorIndex(): Promise<VectorJob> {
+  return request<VectorJob>("/vector-index/rebuild", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ confirm: true }),
+  });
+}
+
+export function getVectorJob(jobId: string): Promise<VectorJob> {
+  return request<VectorJob>(
+    `/vector-index/jobs/${encodeURIComponent(jobId)}`,
+  );
+}
+
+export function searchSemantically(
+  input: SemanticSearchInput,
+): Promise<SemanticSearchResponse> {
+  return request<SemanticSearchResponse>("/search/semantic", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(input),
+  });
+}
+
+export function answerWithRag(
+  input: RagAnswerInput,
+): Promise<RagAnswerResponse> {
+  return request<RagAnswerResponse>("/rag/answer", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(input),
+  });
 }
 
 export function getDashboard(): Promise<DashboardResponse> {

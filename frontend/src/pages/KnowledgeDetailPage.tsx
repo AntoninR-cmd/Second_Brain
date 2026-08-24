@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 
 import { getKnowledgeNode, getReadableError } from "../api/client";
 import type { KnowledgeEvidence } from "../api/types";
@@ -8,6 +8,10 @@ import {
   formatSrtTimestamp,
   getSourceTypeLabel,
 } from "../utils/sourcePresentation";
+
+interface KnowledgeDetailLocationState {
+  fromSearch?: string;
+}
 
 function getEvidenceLocator(evidence: KnowledgeEvidence): string {
   if (evidence.start_ms !== null && evidence.end_ms !== null) {
@@ -32,6 +36,13 @@ function getEvidenceLocator(evidence: KnowledgeEvidence): string {
 
 export function KnowledgeDetailPage() {
   const { nodeId } = useParams();
+  const location = useLocation();
+  const requestedSearchReturn = (
+    location.state as KnowledgeDetailLocationState | null
+  )?.fromSearch;
+  const searchReturn = requestedSearchReturn?.startsWith("/recherche")
+    ? requestedSearchReturn
+    : null;
   const nodeQuery = useQuery({
     queryKey: ["knowledge-nodes", nodeId],
     queryFn: () => getKnowledgeNode(nodeId ?? ""),
@@ -70,8 +81,8 @@ export function KnowledgeDetailPage() {
           {getReadableError(nodeQuery.error)}
         </p>
         <div className="detail-error-actions">
-          <Link className="button button-ghost" to="/sources">
-            Revenir aux sources
+          <Link className="button button-ghost" to={searchReturn ?? "/sources"}>
+            {searchReturn ? "Revenir à la recherche" : "Revenir aux sources"}
           </Link>
           <button
             className="button button-primary"
@@ -89,9 +100,12 @@ export function KnowledgeDetailPage() {
 
   return (
     <section className="page knowledge-detail-page">
-      <Link className="back-link" to={`/sources/${node.source.id}`}>
+      <Link
+        className="back-link"
+        to={searchReturn ?? `/sources/${node.source.id}`}
+      >
         <span aria-hidden="true">←</span>
-        Revenir à la source
+        {searchReturn ? "Revenir à la recherche" : "Revenir à la source"}
       </Link>
 
       <header className="page-header knowledge-detail-header">
