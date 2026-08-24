@@ -23,6 +23,13 @@ const INDEX_STATE_LABELS: Record<VectorIndexState, string> = {
   corrupt: "Endommagé",
 };
 
+const PROFILE_STATUS_LABELS = {
+  building: "Construction",
+  active: "Actif",
+  retired: "Retiré",
+  failed: "Erreur",
+} as const;
+
 function AvailabilityBadge({
   available,
   availableLabel,
@@ -44,7 +51,6 @@ function AvailabilityBadge({
 
 function getJobMessage(job: VectorJob): string {
   return (
-    job.message?.trim() ||
     job.progress_message?.trim() ||
     (job.status === "pending"
       ? "Indexation en attente"
@@ -57,16 +63,11 @@ function getJobMessage(job: VectorJob): string {
 }
 
 function getJobError(job: VectorJob): string | null {
-  return (
-    job.error?.trim() ||
-    job.error_detail?.trim() ||
-    job.error_message?.trim() ||
-    null
-  );
+  return job.error_detail?.trim() || job.error_message?.trim() || null;
 }
 
 function getJobLastActivity(job: VectorJob): string | null {
-  return job.last_activity?.trim() || job.last_activity_at?.trim() || null;
+  return job.last_activity_at.trim() || null;
 }
 
 function isJobActive(job: VectorJob | null | undefined): boolean {
@@ -93,9 +94,12 @@ export function SettingsPage() {
       isJobActive(query.state.data?.active_job) ? 1_500 : 15_000,
   });
 
-  const statusJob = vectorStatusQuery.data?.active_job;
+  const activeStatusJob = vectorStatusQuery.data?.active_job ?? null;
+  const statusJob =
+    activeStatusJob ?? vectorStatusQuery.data?.latest_job ?? null;
   const trackedJobId =
-    requestedJobId ?? (isJobActive(statusJob) ? (statusJob?.id ?? null) : null);
+    requestedJobId ??
+    (isJobActive(activeStatusJob) ? (activeStatusJob?.id ?? null) : null);
   const vectorJobQuery = useQuery({
     queryKey: ["vector-index", "jobs", trackedJobId],
     queryFn: () => getVectorJob(trackedJobId ?? ""),
@@ -162,23 +166,28 @@ export function SettingsPage() {
   const requiresRebuild =
     vectorStatus?.state === "incompatible" ||
     vectorStatus?.state === "corrupt";
+  const profileError = vectorStatus?.active_profile?.error_message ?? null;
+  const maintenanceItemCount = vectorStatus
+    ? vectorStatus.pending_or_stale_nodes +
+      vectorStatus.failed_nodes +
+      vectorStatus.orphan_points
+    : 0;
   const canIndex =
     Boolean(vectorStatus) &&
     embeddingIsReady &&
     !requiresRebuild &&
     !vectorJobIsActive &&
     !vectorMutationPending &&
-    vectorStatus!.total_nodes > 0 &&
-    vectorStatus!.pending_or_stale_nodes +
-      vectorStatus!.failed_nodes +
-      (vectorStatus!.orphan_points ?? 0) >
-      0;
+    maintenanceItemCount > 0;
   const canRebuild =
     Boolean(vectorStatus) &&
     embeddingIsReady &&
     !vectorJobIsActive &&
     !vectorMutationPending &&
-    vectorStatus!.total_nodes > 0;
+    (vectorStatus!.total_nodes > 0 ||
+      vectorStatus!.active_profile !== null ||
+      vectorStatus!.orphan_points > 0 ||
+      requiresRebuild);
   const operationError = indexMutation.error ?? rebuildMutation.error;
 
   return (
@@ -236,7 +245,7 @@ export function SettingsPage() {
           <div className="panel-header">
             <div>
               <h2 id="generation-title">Modèle de génération</h2>
-              <p>Utilisé uniquement pour les analyses de Phase 3.</p>
+              <p>Utilisé pour les analyses et les réponses RAG sourcées.</p>
             </div>
             <AvailabilityBadge
               available={readinessQuery.data.ollama.available}
@@ -405,9 +414,7 @@ export function SettingsPage() {
               </div>
               <div>
                 <dt>Points orphelins</dt>
-                <dd>
-                  {(vectorStatus.orphan_points ?? 0).toLocaleString("fr-FR")}
-                </dd>
+                <dd>{vectorStatus.orphan_points.toLocaleString("fr-FR")}</dd>
               </div>
             </dl>
 
@@ -438,9 +445,33 @@ export function SettingsPage() {
                 <dt>Génération logique</dt>
                 <dd>{vectorStatus.active_profile?.logical_generation ?? "—"}</dd>
               </div>
+              <div>
+                <dt>État du profil</dt>
+                <dd>
+                  {vectorStatus.active_profile
+                    ? PROFILE_STATUS_LABELS[vectorStatus.active_profile.status]
+                    : "Aucun profil"}
+                </dd>
+              </div>
+              <div>
+                <dt>Version du texte sémantique</dt>
+                <dd>
+                  <code>
+                    {vectorStatus.active_profile?.semantic_text_version ?? "—"}
+                  </code>
+                </dd>
+              </div>
+              <div>
+                <dt>Digest du modèle</dt>
+                <dd>
+                  <code className="vector-profile-digest">
+                    {vectorStatus.active_profile?.model_digest ?? "Non fourni"}
+                  </code>
+                </dd>
+              </div>
             </dl>
 
-            {vectorStatus.error || requiresRebuild ? (
+            {vectorStatus.error || requiresRebuild || profileError ? (
               <div className="settings-error" role="alert">
                 <strong>
                   {requiresRebuild
@@ -449,6 +480,7 @@ export function SettingsPage() {
                 </strong>
                 <p>
                   {vectorStatus.error ??
+                    profileError ??
                     (vectorStatus.state === "incompatible"
                       ? "L’index existant a été produit par un autre modèle ou une autre dimension."
                       : "L’index dérivé ne peut pas être lu. SQLite reste la source de vérité.")}

@@ -6,6 +6,8 @@ import type {
   KnowledgeNodeDetail,
   KnowledgeNodeListResponse,
   ManualSourceInput,
+  RagAnswerInput,
+  RagAnswerResponse,
   SemanticSearchInput,
   SemanticSearchResponse,
   SourceDetail,
@@ -107,6 +109,18 @@ export function searchSemantically(
   input: SemanticSearchInput,
 ): Promise<SemanticSearchResponse> {
   return request<SemanticSearchResponse>("/search/semantic", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(input),
+  });
+}
+
+export function answerWithRag(
+  input: RagAnswerInput,
+): Promise<RagAnswerResponse> {
+  return request<RagAnswerResponse>("/rag/answer", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
