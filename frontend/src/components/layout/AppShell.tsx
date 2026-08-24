@@ -24,6 +24,14 @@ function SourcesIcon() {
   );
 }
 
+function BrainIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M9.5 3a3.5 3.5 0 0 0-3.36 4.48A3.5 3.5 0 0 0 4.5 14a3.5 3.5 0 0 0 3.75 3.49A3.5 3.5 0 0 0 12 21v-7h-1.5a1 1 0 1 1 0-2H12V6.5A3.5 3.5 0 0 0 9.5 3Zm5 0A3.5 3.5 0 0 1 18 6.5c0 .34-.05.67-.14.98A3.5 3.5 0 0 1 19.5 14a3.5 3.5 0 0 1-3.75 3.49A3.5 3.5 0 0 1 12 21v-5h1.5a1 1 0 1 0 0-2H12V6.5A3.5 3.5 0 0 1 14.5 3Z" />
+    </svg>
+  );
+}
+
 function SettingsIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -86,6 +94,15 @@ export function AppShell() {
           >
             <AddIcon />
             <span>Ajouter</span>
+          </NavLink>
+          <NavLink
+            to="/cerveau"
+            className={({ isActive }) =>
+              `navigation-link${isActive ? " is-active" : ""}`
+            }
+          >
+            <BrainIcon />
+            <span>Cerveau</span>
           </NavLink>
           <NavLink
             to="/recherche"

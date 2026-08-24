@@ -2,36 +2,15 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useParams } from "react-router-dom";
 
 import { getKnowledgeNode, getReadableError } from "../api/client";
-import type { KnowledgeEvidence } from "../api/types";
 import {
   formatDate,
-  formatSrtTimestamp,
+  getKnowledgeEvidenceLocator,
   getSourceTypeLabel,
 } from "../utils/sourcePresentation";
 
 interface KnowledgeDetailLocationState {
   fromSearch?: string;
-}
-
-function getEvidenceLocator(evidence: KnowledgeEvidence): string {
-  if (evidence.start_ms !== null && evidence.end_ms !== null) {
-    return `${formatSrtTimestamp(evidence.start_ms)} → ${formatSrtTimestamp(evidence.end_ms)}`;
-  }
-
-  if (
-    evidence.first_segment_index !== null &&
-    evidence.last_segment_index !== null
-  ) {
-    return evidence.first_segment_index === evidence.last_segment_index
-      ? `Segment #${evidence.first_segment_index}`
-      : `Segments #${evidence.first_segment_index} à #${evidence.last_segment_index}`;
-  }
-
-  if (evidence.char_start !== null && evidence.char_end !== null) {
-    return `Caractères ${evidence.char_start} à ${evidence.char_end}`;
-  }
-
-  return `Passage #${evidence.passage_index}`;
+  fromBrain?: string;
 }
 
 export function KnowledgeDetailPage() {
@@ -43,6 +22,11 @@ export function KnowledgeDetailPage() {
   const searchReturn = requestedSearchReturn?.startsWith("/recherche")
     ? requestedSearchReturn
     : null;
+  const requestedBrainReturn = (
+    location.state as KnowledgeDetailLocationState | null
+  )?.fromBrain;
+  const brainReturn = requestedBrainReturn === "/cerveau" ? requestedBrainReturn : null;
+  const returnPath = brainReturn ?? searchReturn;
   const nodeQuery = useQuery({
     queryKey: ["knowledge-nodes", nodeId],
     queryFn: () => getKnowledgeNode(nodeId ?? ""),
@@ -81,8 +65,12 @@ export function KnowledgeDetailPage() {
           {getReadableError(nodeQuery.error)}
         </p>
         <div className="detail-error-actions">
-          <Link className="button button-ghost" to={searchReturn ?? "/sources"}>
-            {searchReturn ? "Revenir à la recherche" : "Revenir aux sources"}
+          <Link className="button button-ghost" to={returnPath ?? "/sources"}>
+            {brainReturn
+              ? "Revenir au cerveau"
+              : searchReturn
+                ? "Revenir à la recherche"
+                : "Revenir aux sources"}
           </Link>
           <button
             className="button button-primary"
@@ -102,10 +90,14 @@ export function KnowledgeDetailPage() {
     <section className="page knowledge-detail-page">
       <Link
         className="back-link"
-        to={searchReturn ?? `/sources/${node.source.id}`}
+        to={returnPath ?? `/sources/${node.source.id}`}
       >
         <span aria-hidden="true">←</span>
-        {searchReturn ? "Revenir à la recherche" : "Revenir à la source"}
+        {brainReturn
+          ? "Revenir au cerveau"
+          : searchReturn
+            ? "Revenir à la recherche"
+            : "Revenir à la source"}
       </Link>
 
       <header className="page-header knowledge-detail-header">
@@ -192,7 +184,7 @@ export function KnowledgeDetailPage() {
               <li className="evidence-card" key={evidence.id}>
                 <div className="evidence-heading">
                   <strong>Passage #{evidence.passage_index}</strong>
-                  <span>{getEvidenceLocator(evidence)}</span>
+                  <span>{getKnowledgeEvidenceLocator(evidence)}</span>
                 </div>
                 <blockquote>{evidence.original_excerpt}</blockquote>
               </li>

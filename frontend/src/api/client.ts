@@ -1,6 +1,10 @@
 import type {
   AnalysisJob,
   BrainJob,
+  BrainCluster,
+  BrainClusterDetail,
+  BrainGraphResponse,
+  BrainSearchResponse,
   BrainStatus,
   DashboardResponse,
   FileSourceInput,
@@ -133,6 +137,52 @@ export function relabelBrain(): Promise<BrainJob> {
 
 export function getBrainJob(jobId: string): Promise<BrainJob> {
   return request<BrainJob>(`/brain/jobs/${encodeURIComponent(jobId)}`);
+}
+
+export function getBrainClusters(input?: {
+  level?: number;
+  parentId?: string;
+  limit?: number;
+}): Promise<BrainCluster[]> {
+  const parameters = new URLSearchParams();
+  if (input?.level !== undefined) {
+    parameters.set("level", input.level.toString());
+  }
+  if (input?.parentId) {
+    parameters.set("parent_id", input.parentId);
+  }
+  parameters.set("limit", (input?.limit ?? 200).toString());
+  return request<BrainCluster[]>(`/brain/clusters?${parameters.toString()}`);
+}
+
+export function getBrainCluster(clusterId: string): Promise<BrainClusterDetail> {
+  return request<BrainClusterDetail>(
+    `/brain/clusters/${encodeURIComponent(clusterId)}`,
+  );
+}
+
+export function getBrainGraph(input?: {
+  level?: number;
+  clusterId?: string;
+  nodeLimit?: number;
+  edgeLimit?: number;
+}): Promise<BrainGraphResponse> {
+  const parameters = new URLSearchParams({
+    node_limit: (input?.nodeLimit ?? 500).toString(),
+    edge_limit: (input?.edgeLimit ?? 2_000).toString(),
+  });
+  if (input?.level !== undefined) {
+    parameters.set("level", input.level.toString());
+  }
+  if (input?.clusterId) {
+    parameters.set("cluster_id", input.clusterId);
+  }
+  return request<BrainGraphResponse>(`/brain/graph?${parameters.toString()}`);
+}
+
+export function searchBrain(query: string, limit = 20): Promise<BrainSearchResponse> {
+  const parameters = new URLSearchParams({ q: query, limit: limit.toString() });
+  return request<BrainSearchResponse>(`/brain/search?${parameters.toString()}`);
 }
 
 export function searchSemantically(

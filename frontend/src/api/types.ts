@@ -254,6 +254,96 @@ export interface BrainStatus {
   error: string | null;
 }
 
+export interface BrainCluster {
+  id: string;
+  parent_id: string | null;
+  level: number;
+  label: string;
+  description: string | null;
+  label_source: "deterministic" | "ollama";
+  member_count: number;
+  representative_knowledge_node_ids: string[];
+  x: number;
+  y: number;
+  child_count: number;
+}
+
+export interface BrainKnowledgeNode {
+  id: string;
+  cluster_id: string | null;
+  title: string;
+  tags: string[];
+  source_id: string;
+  source_title: string;
+  x: number;
+  y: number;
+  is_unassigned: boolean;
+  href: string;
+}
+
+export interface BrainClusterDetail extends BrainCluster {
+  children: BrainCluster[];
+  knowledge_nodes: BrainKnowledgeNode[];
+}
+
+export interface BrainGraphNode {
+  id: string;
+  kind: "cluster" | "knowledge";
+  label: string;
+  x: number;
+  y: number;
+  size: number;
+  cluster_id: string | null;
+  knowledge_node_id: string | null;
+  source_id: string | null;
+  tags: string[];
+  href: string | null;
+}
+
+export interface BrainGraphEdge {
+  source: string;
+  target: string;
+  score: number;
+  relation_count: number;
+}
+
+export interface BrainGraphResponse {
+  profile_id: string;
+  level: number;
+  parent_cluster_id: string | null;
+  nodes: BrainGraphNode[];
+  edges: BrainGraphEdge[];
+  truncated: boolean;
+}
+
+export interface BrainSearchAncestor {
+  id: string;
+  label: string;
+  level: number;
+}
+
+export interface BrainSearchResult {
+  kind: "cluster" | "knowledge";
+  target_id: string;
+  label: string;
+  level: number | null;
+  cluster_id: string | null;
+  x: number;
+  y: number;
+  member_count: number | null;
+  tags: string[];
+  source_id: string | null;
+  source_title: string | null;
+  href: string | null;
+  ancestors: BrainSearchAncestor[];
+}
+
+export interface BrainSearchResponse {
+  profile_id: string;
+  query: string;
+  items: BrainSearchResult[];
+}
+
 export type ProcessingJobStatus =
   | "pending"
   | "running"

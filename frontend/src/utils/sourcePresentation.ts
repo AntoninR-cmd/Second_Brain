@@ -1,5 +1,6 @@
 import type {
   AnalysisStatus,
+  KnowledgeEvidence,
   ProcessingStatus,
   SourceType,
 } from "../api/types";
@@ -46,6 +47,38 @@ export function formatSrtTimestamp(milliseconds: number): string {
     .padStart(2, "0")}:${seconds.toString().padStart(2, "0")},${remainder
     .toString()
     .padStart(3, "0")}`;
+}
+
+export function getKnowledgeEvidenceLocator(
+  evidence: Pick<
+    KnowledgeEvidence,
+    | "start_ms"
+    | "end_ms"
+    | "first_segment_index"
+    | "last_segment_index"
+    | "char_start"
+    | "char_end"
+    | "passage_index"
+  >,
+): string {
+  if (evidence.start_ms !== null && evidence.end_ms !== null) {
+    return `${formatSrtTimestamp(evidence.start_ms)} → ${formatSrtTimestamp(evidence.end_ms)}`;
+  }
+
+  if (
+    evidence.first_segment_index !== null &&
+    evidence.last_segment_index !== null
+  ) {
+    return evidence.first_segment_index === evidence.last_segment_index
+      ? `Segment #${evidence.first_segment_index}`
+      : `Segments #${evidence.first_segment_index} à #${evidence.last_segment_index}`;
+  }
+
+  if (evidence.char_start !== null && evidence.char_end !== null) {
+    return `Caractères ${evidence.char_start} à ${evidence.char_end}`;
+  }
+
+  return `Passage #${evidence.passage_index}`;
 }
 
 export function getProcessingStatusLabel(status: ProcessingStatus): string {
