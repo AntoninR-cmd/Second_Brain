@@ -114,6 +114,7 @@ export function BrainPage() {
   const renderedGraphRef = useRef<BrainGraph | null>(null);
   const [breadcrumbs, setBreadcrumbs] = useState<BrainBreadcrumbItem[]>([]);
   const [selection, setSelection] = useState<SelectedBrainTarget | null>(null);
+  const [focusRequestId, setFocusRequestId] = useState(0);
   const [searchValue, setSearchValue] = useState("");
   const debouncedSearch = useDebouncedValue(searchValue.trim(), SEARCH_DEBOUNCE_MS);
   const [interaction, dispatch] = useReducer(
@@ -335,6 +336,7 @@ export function BrainPage() {
       dispatch({ type: "select-node", nodeId });
       dispatch({ type: "highlight-element", elementId: nodeId });
       pendingFocusRef.current = nodeId;
+      setFocusRequestId((current) => current + 1);
       navigationStartedAtRef.current = clockNow();
       navigationLockRef.current = true;
       setSearchValue("");
@@ -362,7 +364,7 @@ export function BrainPage() {
       navigationLockRef.current = false;
     };
     void settleCamera();
-  }, [builtGraph.graph, selection?.graphNodeId]);
+  }, [builtGraph.graph, focusRequestId, selection?.graphNodeId]);
 
   const handleCanvasMetric = useCallback((metric: BrainCanvasMetric) => {
     setMetrics((current) => {
