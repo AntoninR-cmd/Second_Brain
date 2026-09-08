@@ -812,9 +812,14 @@ textarea:focus {
 }
 
 .file-picker:hover,
-.file-picker:has(+ .file-input:focus-visible) {
+.file-picker:has(+ .file-input:focus-visible),
+.file-picker.is-dragging {
   border-color: var(--primary);
   background: var(--primary-soft);
+}
+
+.file-picker.is-dragging {
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
 }
 
 .selected-file {
@@ -937,6 +942,30 @@ textarea:focus {
 .source-type.type-txt {
   background: #ecfdf3;
   color: #18794e;
+}
+
+.source-type.type-pdf {
+  background: #fff1f0;
+  color: #b42318;
+}
+
+.source-type.type-epub {
+  background: #fff7e6;
+  color: #9a6700;
+}
+
+.document-processing-alert {
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.document-processing-alert strong {
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.document-processing-alert p {
+  margin: 0;
 }
 
 .list-actions {

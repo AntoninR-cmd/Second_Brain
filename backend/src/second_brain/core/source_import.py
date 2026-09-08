@@ -12,16 +12,28 @@ from uuid import uuid4
 from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from second_brain.core.config import Settings
 from second_brain.core.source_parsing import (
-    ParsedSubtitle,
     SourceParseError,
     decode_text,
     parse_srt,
 )
 from second_brain.db.models.source import ProcessingStatus, Source, SourceType
 from second_brain.db.models.source_segment import SourceSegment
+from second_brain.parsers import (
+    DocumentParsingLimits,
+    ParsedSegment,
+    ParsedSource,
+    parse_epub,
+    parse_pdf,
+)
 
-_ALLOWED_EXTENSIONS = {".srt": SourceType.SRT, ".txt": SourceType.TXT}
+_ALLOWED_EXTENSIONS = {
+    ".srt": SourceType.SRT,
+    ".txt": SourceType.TXT,
+    ".pdf": SourceType.PDF,
+    ".epub": SourceType.EPUB,
+}
 _WINDOWS_RESERVED_NAMES = {
     "aux",
     "clock$",
@@ -33,6 +45,9 @@ _WINDOWS_RESERVED_NAMES = {
 }
 _INVALID_FILENAME_CHARACTERS = re.compile(r'[<>:"/\\|?*]')
 _READ_CHUNK_SIZE = 1024 * 1024
+_NEEDS_OCR_MESSAGE = (
+    "Ce PDF semble nécessiter une reconnaissance OCR, non disponible dans cette version."
+)
 
 
 class SourceImportError(Exception):
@@ -71,13 +86,19 @@ async def import_uploaded_source(
     data: bytes,
     title: str | None,
     author: str | None,
+    parsing_limits: DocumentParsingLimits | None = None,
 ) -> Source:
     safe_filename, extension, source_type = validate_filename(filename)
     normalized_title = _normalize_metadata(title, "titre")
     normalized_author = _normalize_metadata(author, "auteur")
 
     try:
-        raw_text, subtitles = await asyncio.to_thread(_extract_source, data, source_type)
+        parsed = await asyncio.to_thread(
+            _extract_source,
+            data,
+            source_type,
+            parsing_limits,
+        )
     except SourceParseError as error:
         raise SourceImportError(str(error)) from error
 
@@ -86,22 +107,38 @@ async def import_uploaded_source(
     source = Source(
         id=source_id,
         type=source_type,
-        title=normalized_title or _title_from_filename(safe_filename),
-        author=normalized_author,
+        title=(
+            normalized_title
+            or _normalize_embedded_metadata(parsed.embedded_title, max_length=255)
+            or _title_from_filename(safe_filename)
+        ),
+        author=(
+            normalized_author
+            or _normalize_embedded_metadata(parsed.embedded_author, max_length=255)
+        ),
         original_filename=safe_filename,
         original_file_path=relative_path.as_posix(),
         file_sha256=hashlib.sha256(data).hexdigest(),
-        raw_text=raw_text,
-        processing_status=ProcessingStatus.READY,
+        raw_text=parsed.raw_text,
+        processing_status=(
+            ProcessingStatus.NEEDS_OCR if parsed.needs_ocr else ProcessingStatus.READY
+        ),
+        processing_error=_NEEDS_OCR_MESSAGE if parsed.needs_ocr else None,
+        page_count=parsed.page_count,
+        chapter_count=parsed.chapter_count,
+        language=_normalize_embedded_metadata(parsed.language, max_length=32),
     )
     source.segments = [
         SourceSegment(
-            index=subtitle.index,
-            text=subtitle.text,
-            start_ms=subtitle.start_ms,
-            end_ms=subtitle.end_ms,
+            index=segment.index,
+            text=segment.text,
+            start_ms=segment.start_ms,
+            end_ms=segment.end_ms,
+            page_number=segment.page_number,
+            chapter_index=segment.chapter_index,
+            chapter_title=segment.chapter_title,
         )
-        for subtitle in subtitles
+        for segment in parsed.segments
     ]
 
     source_directory = await asyncio.to_thread(
@@ -138,7 +175,7 @@ def validate_filename(filename: str | None) -> tuple[str, str, SourceType]:
     source_type = _ALLOWED_EXTENSIONS.get(extension)
     if source_type is None:
         raise SourceImportError(
-            "Seuls les fichiers .srt et .txt sont acceptés.",
+            "Seuls les fichiers .srt, .txt, .pdf et .epub sont acceptés.",
             status_code=415,
         )
     if path.stem.lower() in _WINDOWS_RESERVED_NAMES:

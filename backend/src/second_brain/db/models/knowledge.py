@@ -88,6 +88,19 @@ class KnowledgeEvidence(Base):
             "char_start IS NULL OR char_end IS NULL OR char_start <= char_end",
             name="ck_knowledge_evidence_char_range",
         ),
+        CheckConstraint(
+            "page_number IS NULL OR page_number >= 1",
+            name="ck_knowledge_evidence_page_number",
+        ),
+        CheckConstraint(
+            "page_end_number IS NULL OR "
+            "(page_number IS NOT NULL AND page_end_number >= page_number)",
+            name="ck_knowledge_evidence_page_range",
+        ),
+        CheckConstraint(
+            "chapter_index IS NULL OR chapter_index >= 0",
+            name="ck_knowledge_evidence_chapter_index",
+        ),
         UniqueConstraint(
             "knowledge_node_id",
             "evidence_index",
@@ -134,6 +147,10 @@ class KnowledgeEvidence(Base):
     end_ms: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     char_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
     char_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    page_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    page_end_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    chapter_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    chapter_title: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     knowledge_node: Mapped[KnowledgeNode] = relationship(back_populates="evidence")
     passage: Mapped[SourcePassage] = relationship(back_populates="evidence")

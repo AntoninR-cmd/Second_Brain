@@ -209,6 +209,36 @@ def chunk_srt_segments(
     return chunks
 
 
+def chunk_document_segments(
+    segments: Sequence[SourceSegmentInput],
+    config: ChunkingConfig | None = None,
+) -> list[SourceChunk]:
+    """Chunk page/chapter text while retaining its exact structural segment.
+
+    PDF pages and EPUB spine documents remain provenance boundaries. The existing
+    paragraph/sentence-aware text chunker still performs the actual splitting, but
+    a passage never silently crosses from one page or chapter into another.
+    """
+
+    selected_config = config or ChunkingConfig()
+    if not segments:
+        return []
+
+    _validate_segment_order(segments)
+    chunks: list[SourceChunk] = []
+    for segment in segments:
+        for text_chunk in chunk_text(segment.text, selected_config):
+            chunks.append(
+                SourceChunk(
+                    index=len(chunks),
+                    text=text_chunk.text,
+                    token_count=text_chunk.token_count,
+                    segment_indices=(segment.index,),
+                )
+            )
+    return chunks
+
+
 def _text_units(text: str, max_tokens: int) -> list[_TextUnit]:
     paragraph_spans = _paragraph_spans(text)
     units: list[_TextUnit] = []
@@ -353,7 +383,7 @@ def _overlap_tail(units: Sequence[_SrtUnit], overlap_segments: int) -> list[_Srt
 def _validate_segment_order(segments: Sequence[SourceSegmentInput]) -> None:
     indices = [segment.index for segment in segments]
     if indices != sorted(indices) or len(indices) != len(set(indices)):
-        raise ValueError("les segments SRT doivent etre ordonnes et avoir des indices uniques")
+        raise ValueError("les segments source doivent etre ordonnes et avoir des indices uniques")
 
 
 def _trim_span(text: str, start: int, end: int) -> tuple[int, int] | None:

@@ -1,5 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, type ChangeEvent, type FormEvent } from "react";
+import {
+  useRef,
+  useState,
+  type ChangeEvent,
+  type DragEvent,
+  type FormEvent,
+} from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import {
@@ -10,6 +16,25 @@ import {
 import type { FileSourceInput, ManualSourceInput } from "../api/types";
 
 type AddMode = "manual" | "file";
+type FileSourceExtension = "srt" | "txt" | "pdf" | "epub";
+
+const FILE_SOURCE_EXTENSIONS = new Set<FileSourceExtension>([
+  "srt",
+  "txt",
+  "pdf",
+  "epub",
+]);
+
+function fileExtension(filename: string): FileSourceExtension | null {
+  const extension = filename.split(".").pop()?.toLowerCase();
+  return extension && FILE_SOURCE_EXTENSIONS.has(extension as FileSourceExtension)
+    ? (extension as FileSourceExtension)
+    : null;
+}
+
+function fileTypeLabel(file: File): string {
+  return fileExtension(file.name)?.toUpperCase() ?? "FICHIER";
+}
 
 function ManualSourceForm() {
   const navigate = useNavigate();
@@ -190,6 +215,8 @@ function FileSourceForm() {
   const [titleWasEdited, setTitleWasEdited] = useState(false);
   const [author, setAuthor] = useState("");
   const [fileError, setFileError] = useState<string | null>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const dragDepth = useRef(0);
 
   const importSource = useMutation({
     mutationFn: uploadSource,
@@ -214,42 +241,76 @@ function FileSourceForm() {
     }
   }
 
-  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const selectedFile = event.target.files?.[0] ?? null;
+  function selectFile(selectedFile: File | null): boolean {
     setFileError(null);
     clearMutationError();
 
     if (!selectedFile) {
       setFile(null);
-      return;
+      return false;
     }
 
-    const extension = selectedFile.name.split(".").pop()?.toLowerCase();
-    if (extension !== "srt" && extension !== "txt") {
+    if (!fileExtension(selectedFile.name)) {
       setFile(null);
-      setFileError("Sélectionnez uniquement un fichier .srt ou .txt.");
-      event.target.value = "";
-      return;
+      setFileError(
+        "Sélectionnez uniquement un fichier .srt, .txt, .pdf ou .epub.",
+      );
+      return false;
     }
 
     if (selectedFile.size === 0) {
       setFile(null);
       setFileError("Le fichier sélectionné est vide.");
-      event.target.value = "";
-      return;
+      return false;
     }
 
     setFile(selectedFile);
     if (!titleWasEdited) {
       setTitle(filenameTitle(selectedFile.name));
     }
+    return true;
+  }
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const selectedFile = event.target.files?.[0] ?? null;
+    if (!selectFile(selectedFile)) {
+      event.target.value = "";
+    }
+  }
+
+  function handleDragEnter(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    dragDepth.current += 1;
+    setIsDraggingFile(true);
+  }
+
+  function handleDragOver(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) {
+      setIsDraggingFile(false);
+    }
+  }
+
+  function handleDrop(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    dragDepth.current = 0;
+    setIsDraggingFile(false);
+    selectFile(event.dataTransfer.files.item(0));
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!file) {
-      setFileError("Sélectionnez un fichier .srt ou .txt à importer.");
+      setFileError(
+        "Sélectionnez un fichier .srt, .txt, .pdf ou .epub à importer.",
+      );
       return;
     }
 
@@ -257,7 +318,7 @@ function FileSourceForm() {
     const trimmedAuthor = author.trim();
     const input: FileSourceInput = {
       file,
-      ...(trimmedTitle ? { title: trimmedTitle } : {}),
+      ...(titleWasEdited && trimmedTitle ? { title: trimmedTitle } : {}),
       ...(trimmedAuthor ? { author: trimmedAuthor } : {}),
     };
 
@@ -268,14 +329,21 @@ function FileSourceForm() {
     <form className="panel note-form" onSubmit={handleSubmit}>
       <div className="form-section">
         <div className="field-group">
-          <label htmlFor="source-file">Fichier SRT ou TXT</label>
-          <label className="file-picker" htmlFor="source-file">
+          <label htmlFor="source-file">Fichier à importer</label>
+          <label
+            className={`file-picker${isDraggingFile ? " is-dragging" : ""}`}
+            htmlFor="source-file"
+            onDragEnter={handleDragEnter}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
             <span className="file-picker-icon" aria-hidden="true">
               ↑
             </span>
             <span>
-              <strong>Choisir un fichier</strong>
-              <small>Formats acceptés : .srt et .txt</small>
+              <strong>Déposer un fichier ou parcourir</strong>
+              <small>Formats acceptés : .srt, .txt, .pdf et .epub</small>
             </span>
           </label>
           <input
@@ -283,9 +351,7 @@ function FileSourceForm() {
             id="source-file"
             name="file"
             type="file"
-            accept=".srt,.txt"
-            required
-            aria-required="true"
+            accept=".srt,.txt,.pdf,.epub"
             aria-describedby="file-help"
             onChange={handleFileChange}
           />
@@ -296,12 +362,14 @@ function FileSourceForm() {
                 <small>{formatFileSize(file.size)}</small>
               </span>
               <span className="selected-file-type">
-                {file.name.toLowerCase().endsWith(".srt") ? "SRT" : "TXT"}
+                {fileTypeLabel(file)}
               </span>
             </div>
           ) : null}
           <p id="file-help" className="field-help">
             Une copie intacte sera conservée dans le dossier de données local.
+            Les PDF sans couche texte nécessitent un OCR, non disponible dans
+            cette version.
           </p>
           {fileError ? (
             <p className="field-error" role="alert">
@@ -329,7 +397,8 @@ function FileSourceForm() {
             }}
           />
           <p className="field-help">
-            Si vous le laissez vide, le nom du fichier sera utilisé.
+            Laissez ce champ inchangé pour utiliser les métadonnées du document
+            ou, à défaut, son nom de fichier.
           </p>
         </div>
 
@@ -393,8 +462,7 @@ export function AddPage() {
           <p className="eyebrow">Nouvelle entrée</p>
           <h1>Ajouter une source</h1>
           <p className="page-introduction">
-            Saisissez une note libre ou importez un fichier de sous-titres SRT ou
-            un document texte TXT.
+            Saisissez une note libre ou importez un fichier SRT, TXT, PDF ou EPUB.
           </p>
         </div>
       </header>
@@ -425,7 +493,7 @@ export function AddPage() {
           </span>
           <span>
             <strong>Importer un fichier</strong>
-            <small>SRT ou TXT uniquement</small>
+            <small>SRT, TXT, PDF ou EPUB</small>
           </span>
         </button>
       </div>

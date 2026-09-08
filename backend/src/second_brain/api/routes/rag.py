@@ -154,4 +154,8 @@ def _evidence_out(evidence: KnowledgeEvidence) -> KnowledgeEvidenceOut:
         last_segment_index=passage.last_segment_index,
         char_start=evidence.char_start,
         char_end=evidence.char_end,
+        page_number=evidence.page_number,
+        page_end_number=evidence.page_end_number,
+        chapter_index=evidence.chapter_index,
+        chapter_title=evidence.chapter_title,
     )

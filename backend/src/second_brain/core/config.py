@@ -38,6 +38,102 @@ class Settings(BaseSettings):
     database_url: str | None = None
     allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     max_upload_mb: int = Field(default=20, ge=1, le=500)
+    pdf_max_pages: int = Field(
+        default=2000,
+        ge=1,
+        le=20_000,
+        validation_alias=AliasChoices("PDF_MAX_PAGES", "SECOND_BRAIN_PDF_MAX_PAGES"),
+    )
+    pdf_max_extracted_chars: int = Field(
+        default=5_000_000,
+        ge=1_000,
+        le=100_000_000,
+        validation_alias=AliasChoices(
+            "PDF_MAX_EXTRACTED_CHARS",
+            "SECOND_BRAIN_PDF_MAX_EXTRACTED_CHARS",
+        ),
+    )
+    pdf_min_text_characters: int = Field(
+        default=40,
+        ge=1,
+        le=10_000,
+        validation_alias=AliasChoices(
+            "PDF_MIN_TEXT_CHARACTERS",
+            "SECOND_BRAIN_PDF_MIN_TEXT_CHARACTERS",
+        ),
+    )
+    pdf_min_text_page_ratio: float = Field(
+        default=0.10,
+        ge=0,
+        le=1,
+        validation_alias=AliasChoices(
+            "PDF_MIN_TEXT_PAGE_RATIO",
+            "SECOND_BRAIN_PDF_MIN_TEXT_PAGE_RATIO",
+        ),
+    )
+    pdf_max_stream_mb: int = Field(
+        default=50,
+        ge=1,
+        le=500,
+        validation_alias=AliasChoices(
+            "PDF_MAX_STREAM_MB",
+            "SECOND_BRAIN_PDF_MAX_STREAM_MB",
+        ),
+    )
+    epub_max_entries: int = Field(
+        default=5000,
+        ge=1,
+        le=100_000,
+        validation_alias=AliasChoices(
+            "EPUB_MAX_ENTRIES",
+            "SECOND_BRAIN_EPUB_MAX_ENTRIES",
+        ),
+    )
+    epub_max_uncompressed_mb: int = Field(
+        default=200,
+        ge=1,
+        le=2000,
+        validation_alias=AliasChoices(
+            "EPUB_MAX_UNCOMPRESSED_MB",
+            "SECOND_BRAIN_EPUB_MAX_UNCOMPRESSED_MB",
+        ),
+    )
+    epub_max_member_mb: int = Field(
+        default=25,
+        ge=1,
+        le=500,
+        validation_alias=AliasChoices(
+            "EPUB_MAX_MEMBER_MB",
+            "SECOND_BRAIN_EPUB_MAX_MEMBER_MB",
+        ),
+    )
+    epub_max_compression_ratio: float = Field(
+        default=100,
+        ge=1,
+        le=10_000,
+        validation_alias=AliasChoices(
+            "EPUB_MAX_COMPRESSION_RATIO",
+            "SECOND_BRAIN_EPUB_MAX_COMPRESSION_RATIO",
+        ),
+    )
+    epub_max_chapters: int = Field(
+        default=2000,
+        ge=1,
+        le=20_000,
+        validation_alias=AliasChoices(
+            "EPUB_MAX_CHAPTERS",
+            "SECOND_BRAIN_EPUB_MAX_CHAPTERS",
+        ),
+    )
+    epub_max_extracted_chars: int = Field(
+        default=5_000_000,
+        ge=1_000,
+        le=100_000_000,
+        validation_alias=AliasChoices(
+            "EPUB_MAX_EXTRACTED_CHARS",
+            "SECOND_BRAIN_EPUB_MAX_EXTRACTED_CHARS",
+        ),
+    )
     ollama_base_url: str = Field(
         default="http://127.0.0.1:11434",
         validation_alias=AliasChoices("OLLAMA_BASE_URL", "SECOND_BRAIN_OLLAMA_BASE_URL"),
@@ -429,6 +525,18 @@ class Settings(BaseSettings):
         if not data_directory.is_absolute():
             data_directory = REPOSITORY_ROOT / data_directory
         return data_directory.resolve()
+
+    @property
+    def pdf_max_stream_bytes(self) -> int:
+        return self.pdf_max_stream_mb * 1024 * 1024
+
+    @property
+    def epub_max_uncompressed_bytes(self) -> int:
+        return self.epub_max_uncompressed_mb * 1024 * 1024
+
+    @property
+    def epub_max_member_bytes(self) -> int:
+        return self.epub_max_member_mb * 1024 * 1024
 
     @property
     def resolved_database_url(self) -> str:

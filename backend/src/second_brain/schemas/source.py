@@ -54,6 +54,10 @@ class SourceDetail(SourceSummary):
     original_file_path: str | None
     file_sha256: str | None
     raw_text: str
+    processing_error: str | None
+    page_count: int | None = Field(default=None, ge=0)
+    chapter_count: int | None = Field(default=None, ge=0)
+    language: str | None
     segment_count: int = Field(default=0, ge=0)
     summary: str | None
     analysis_error: str | None
@@ -85,6 +89,9 @@ class SourceSegmentOut(BaseModel):
     text: str
     start_ms: int | None
     end_ms: int | None
+    page_number: int | None
+    chapter_index: int | None
+    chapter_title: str | None
 
 
 class SourceSegmentList(BaseModel):

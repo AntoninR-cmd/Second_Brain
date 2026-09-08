@@ -70,7 +70,7 @@ export function SourcesPage() {
               </svg>
             </div>
             <h3>Aucune source enregistrée</h3>
-            <p>Ajoutez une note ou importez un fichier SRT ou TXT.</p>
+            <p>Ajoutez une note ou importez un fichier SRT, TXT, PDF ou EPUB.</p>
             <Link className="button button-secondary" to="/ajouter">
               Ajouter une source
             </Link>

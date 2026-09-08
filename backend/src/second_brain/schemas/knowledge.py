@@ -51,6 +51,10 @@ class KnowledgeEvidenceOut(BaseModel):
     last_segment_index: int | None
     char_start: int | None
     char_end: int | None
+    page_number: int | None
+    page_end_number: int | None
+    chapter_index: int | None
+    chapter_title: str | None
 
 
 class KnowledgeNodeDetail(KnowledgeNodeSummary):

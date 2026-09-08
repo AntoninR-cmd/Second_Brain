@@ -94,6 +94,10 @@ const knowledge: KnowledgeNodeDetail = {
       last_segment_index: 10,
       char_start: null,
       char_end: null,
+      page_number: null,
+      page_end_number: null,
+      chapter_index: null,
+      chapter_title: null,
     },
   ],
 };

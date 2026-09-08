@@ -180,10 +180,10 @@ export function KnowledgeDetailPage() {
           </div>
         ) : (
           <ol className="evidence-list">
-            {node.evidences.map((evidence) => (
+            {node.evidences.map((evidence, evidenceIndex) => (
               <li className="evidence-card" key={evidence.id}>
                 <div className="evidence-heading">
-                  <strong>Passage #{evidence.passage_index}</strong>
+                  <strong>Preuve {evidenceIndex + 1}</strong>
                   <span>{getKnowledgeEvidenceLocator(evidence)}</span>
                 </div>
                 <blockquote>{evidence.original_excerpt}</blockquote>

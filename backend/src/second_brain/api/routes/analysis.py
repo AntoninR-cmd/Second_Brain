@@ -18,8 +18,10 @@ from second_brain.db.models.processing import (
     ProcessingJobKind,
     processing_job_is_stale,
 )
+from second_brain.db.models.source import ProcessingStatus
 from second_brain.db.repositories.analysis import (
     SourceAlreadyAnalyzedError,
+    SourceNotAnalyzableError,
     enqueue_source_analysis,
     get_latest_source_analysis_job,
     get_processing_job,
@@ -49,6 +51,11 @@ async def analyze_source(
     source = await get_source(session, source_id)
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source introuvable.")
+    if source.processing_status != ProcessingStatus.READY:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=source.processing_error or "Cette source ne contient aucun texte analysable.",
+        )
 
     readiness = await generator.get_readiness()
     if not readiness.ollama_available:
@@ -62,6 +69,8 @@ async def analyze_source(
     try:
         job = await enqueue_source_analysis(session, source)
     except SourceAlreadyAnalyzedError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+    except SourceNotAnalyzableError as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
     runner.wakeup()
     return _job_out(job, settings)

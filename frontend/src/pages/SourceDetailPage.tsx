@@ -15,7 +15,7 @@ import {
   getSourceKnowledgeNodes,
   getSourceSegments,
 } from "../api/client";
-import type { AnalysisJob } from "../api/types";
+import type { AnalysisJob, SourceSegment, SourceType } from "../api/types";
 import {
   getAnalysisStatusLabel,
   formatDate,
@@ -26,6 +26,79 @@ import {
 
 interface SourceDetailLocationState {
   flash?: string;
+}
+
+function supportsStructuredPreview(type: SourceType | undefined): boolean {
+  return type === "srt" || type === "pdf" || type === "epub";
+}
+
+function getStructureTitle(type: SourceType): string {
+  if (type === "pdf") {
+    return "Pages extraites";
+  }
+  if (type === "epub") {
+    return "Chapitres détectés";
+  }
+  return "Aperçu des sous-titres";
+}
+
+function getStructureLoadingLabel(type: SourceType): string {
+  if (type === "pdf") {
+    return "Chargement des pages…";
+  }
+  if (type === "epub") {
+    return "Chargement des chapitres…";
+  }
+  return "Chargement des segments…";
+}
+
+function getStructureErrorTitle(type: SourceType): string {
+  if (type === "pdf") {
+    return "Impossible de charger les pages";
+  }
+  if (type === "epub") {
+    return "Impossible de charger les chapitres";
+  }
+  return "Impossible de charger les sous-titres";
+}
+
+function getStructureEmptyLabel(type: SourceType): string {
+  if (type === "pdf") {
+    return "Aucune page textuelle n’est associée à ce PDF.";
+  }
+  if (type === "epub") {
+    return "Aucun chapitre textuel n’est associé à cet EPUB.";
+  }
+  return "Aucun segment n’est associé à cette source.";
+}
+
+function getSegmentLabels(
+  type: SourceType,
+  segment: SourceSegment,
+): { primary: string; secondary: string | null } {
+  if (type === "pdf") {
+    return {
+      primary: `Page ${segment.page_number ?? segment.index + 1}`,
+      secondary: null,
+    };
+  }
+
+  if (type === "epub") {
+    const chapterNumber = (segment.chapter_index ?? segment.index) + 1;
+    const title = segment.chapter_title?.trim();
+    return {
+      primary: title || `Chapitre ${chapterNumber}`,
+      secondary: title ? `Chapitre ${chapterNumber}` : null,
+    };
+  }
+
+  return {
+    primary: `#${segment.index}`,
+    secondary:
+      segment.start_ms === null || segment.end_ms === null
+        ? "Timestamp indisponible"
+        : `${formatSrtTimestamp(segment.start_ms)} → ${formatSrtTimestamp(segment.end_ms)}`,
+  };
 }
 
 const ANALYSIS_STAGE_LABELS: Record<string, string> = {
@@ -230,14 +303,14 @@ export function SourceDetailPage() {
     },
   });
 
-  const isSrt = sourceQuery.data?.type === "srt";
+  const hasStructuredPreview = supportsStructuredPreview(sourceQuery.data?.type);
   const segmentsQuery = useInfiniteQuery({
     queryKey: ["sources", sourceId, "segments"],
     queryFn: ({ pageParam }) =>
       getSourceSegments(sourceId ?? "", pageParam),
     initialPageParam: null as number | null,
     getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
-    enabled: Boolean(sourceId) && isSrt,
+    enabled: Boolean(sourceId) && hasStructuredPreview,
   });
 
   const knowledgeQuery = useInfiniteQuery({
@@ -400,7 +473,9 @@ export function SourceDetailPage() {
   const analysisButtonDisabled =
     analysisMutation.isPending ||
     analysisIsRunning ||
-    source.analysis_status === "analyzed";
+    source.analysis_status === "analyzed" ||
+    source.processing_status === "needs_ocr";
+  const needsOcr = source.processing_status === "needs_ocr";
 
   return (
     <section className="page source-detail-page">
@@ -438,6 +513,19 @@ export function SourceDetailPage() {
         </div>
       ) : null}
 
+      {needsOcr ? (
+        <div className="alert alert-warning document-processing-alert" role="alert">
+          <span aria-hidden="true">!</span>
+          <div>
+            <strong>Reconnaissance OCR nécessaire</strong>
+            <p>
+              {source.processing_error?.trim() ||
+                "Ce PDF semble nécessiter une reconnaissance OCR, non disponible dans cette version."}
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       <section className="panel detail-panel" aria-labelledby="information-title">
         <div className="panel-header">
           <div>
@@ -466,6 +554,24 @@ export function SourceDetailPage() {
             <div>
               <dt>Segments</dt>
               <dd>{source.segment_count.toLocaleString("fr-FR")}</dd>
+            </div>
+          ) : null}
+          {source.type === "pdf" ? (
+            <div>
+              <dt>Pages</dt>
+              <dd>{(source.page_count ?? 0).toLocaleString("fr-FR")}</dd>
+            </div>
+          ) : null}
+          {source.type === "epub" ? (
+            <div>
+              <dt>Chapitres</dt>
+              <dd>{(source.chapter_count ?? 0).toLocaleString("fr-FR")}</dd>
+            </div>
+          ) : null}
+          {source.language ? (
+            <div>
+              <dt>Langue</dt>
+              <dd>{source.language}</dd>
             </div>
           ) : null}
           {source.original_file_path ? (
@@ -501,7 +607,9 @@ export function SourceDetailPage() {
             disabled={analysisButtonDisabled}
             onClick={() => analysisMutation.mutate()}
           >
-            {analysisMutation.isPending ? (
+            {needsOcr ? (
+              "Analyse indisponible"
+            ) : analysisMutation.isPending ? (
               <>
                 <span className="spinner spinner-light" aria-hidden="true" />
                 Démarrage…
@@ -529,7 +637,9 @@ export function SourceDetailPage() {
               {getAnalysisStatusLabel(source.analysis_status)}
             </span>
             <p>
-              {source.analysis_status === "not_analyzed"
+              {needsOcr
+                ? "Le texte exploitable est insuffisant : aucune analyse IA ne sera lancée sans OCR."
+                : source.analysis_status === "not_analyzed"
                 ? "Aucune donnée n’est envoyée à Ollama tant que vous ne lancez pas l’analyse."
                 : source.analysis_status === "queued"
                   ? "L’analyse est en attente du worker local. Vous pouvez quitter cette page."
@@ -810,17 +920,30 @@ export function SourceDetailPage() {
             <p>Contenu textuel conservé dans la base locale.</p>
           </div>
         </div>
-        <pre className="source-text">{source.raw_text}</pre>
+        {source.raw_text.trim() ? (
+          <pre className="source-text">{source.raw_text}</pre>
+        ) : (
+          <div className="empty-state compact-empty-state">
+            <p>
+              {needsOcr
+                ? "Aucun texte exploitable n’a été détecté dans ce PDF."
+                : "Aucun texte extrait n’est disponible."}
+            </p>
+          </div>
+        )}
       </section>
 
-      {source.type === "srt" ? (
+      {supportsStructuredPreview(source.type) ? (
         <section className="panel detail-panel" aria-labelledby="segments-title">
           <div className="panel-header">
             <div>
-              <h2 id="segments-title">Aperçu des sous-titres</h2>
+              <h2 id="segments-title">{getStructureTitle(source.type)}</h2>
               <p>
-                {segmentTotal.toLocaleString("fr-FR")} segment
-                {segmentTotal > 1 ? "s" : ""} avec timestamps précis.
+                {source.type === "pdf"
+                  ? `${(source.page_count ?? segmentTotal).toLocaleString("fr-FR")} page${(source.page_count ?? segmentTotal) > 1 ? "s" : ""} avec provenance conservée.`
+                  : source.type === "epub"
+                    ? `${(source.chapter_count ?? segmentTotal).toLocaleString("fr-FR")} chapitre${(source.chapter_count ?? segmentTotal) > 1 ? "s" : ""} dans l’ordre de lecture.`
+                    : `${segmentTotal.toLocaleString("fr-FR")} segment${segmentTotal > 1 ? "s" : ""} avec timestamps précis.`}
               </p>
             </div>
           </div>
@@ -828,11 +951,11 @@ export function SourceDetailPage() {
           {segmentsQuery.isPending ? (
             <div className="loading-state" role="status">
               <span className="spinner" aria-hidden="true" />
-              Chargement des segments…
+              {getStructureLoadingLabel(source.type)}
             </div>
           ) : segmentsQuery.isError ? (
             <div className="empty-state error-state" role="alert">
-              <h3>Impossible de charger les sous-titres</h3>
+              <h3>{getStructureErrorTitle(source.type)}</h3>
               <p>{getReadableError(segmentsQuery.error)}</p>
               <button
                 className="button button-secondary"
@@ -844,24 +967,25 @@ export function SourceDetailPage() {
             </div>
           ) : segments.length === 0 ? (
             <div className="empty-state compact-empty-state">
-              <p>Aucun segment n’est associé à cette source.</p>
+              <p>{getStructureEmptyLabel(source.type)}</p>
             </div>
           ) : (
             <>
               <ol className="segment-list">
-                {segments.map((segment) => (
-                  <li className="segment-card" key={segment.id}>
-                    <div className="segment-heading">
-                      <strong>#{segment.index}</strong>
-                      <time className="segment-time">
-                        {segment.start_ms === null || segment.end_ms === null
-                          ? "Timestamp indisponible"
-                          : `${formatSrtTimestamp(segment.start_ms)} → ${formatSrtTimestamp(segment.end_ms)}`}
-                      </time>
-                    </div>
-                    <p>{segment.text}</p>
-                  </li>
-                ))}
+                {segments.map((segment) => {
+                  const labels = getSegmentLabels(source.type, segment);
+                  return (
+                    <li className="segment-card" key={segment.id}>
+                      <div className="segment-heading">
+                        <strong>{labels.primary}</strong>
+                        {labels.secondary ? (
+                          <span className="segment-time">{labels.secondary}</span>
+                        ) : null}
+                      </div>
+                      <p>{segment.text}</p>
+                    </li>
+                  );
+                })}
               </ol>
 
               {segmentsQuery.hasNextPage ? (
@@ -878,7 +1002,11 @@ export function SourceDetailPage() {
                         Chargement…
                       </>
                     ) : (
-                      "Afficher plus de segments"
+                    source.type === "pdf"
+                      ? "Afficher plus de pages"
+                      : source.type === "epub"
+                        ? "Afficher plus de chapitres"
+                        : "Afficher plus de segments"
                     )}
                   </button>
                 </div>

@@ -12,7 +12,7 @@ from second_brain.db.models.processing import (
     ProcessingJobKind,
     ProcessingJobStatus,
 )
-from second_brain.db.models.source import AnalysisStatus, Source
+from second_brain.db.models.source import AnalysisStatus, ProcessingStatus, Source
 from second_brain.db.models.taxonomy import KnowledgeNodeTag
 
 
@@ -20,10 +20,21 @@ class SourceAlreadyAnalyzedError(ValueError):
     pass
 
 
+class SourceNotAnalyzableError(ValueError):
+    pass
+
+
 async def enqueue_source_analysis(
     session: AsyncSession,
     source: Source,
 ) -> ProcessingJob:
+    if source.processing_status != ProcessingStatus.READY:
+        raise SourceNotAnalyzableError(
+            source.processing_error or "Cette source ne contient aucun texte analysable."
+        )
+    if not source.raw_text.strip():
+        raise SourceNotAnalyzableError("Cette source ne contient aucun texte analysable.")
+
     active_job = await session.scalar(
         select(ProcessingJob)
         .where(

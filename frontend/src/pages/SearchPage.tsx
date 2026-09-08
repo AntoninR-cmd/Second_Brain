@@ -9,7 +9,6 @@ import {
   getVectorIndexStatus,
 } from "../api/client";
 import type {
-  KnowledgeEvidence,
   RagAnswerResponse,
   RagKnowledge,
   RagMode,
@@ -17,7 +16,7 @@ import type {
   VectorIndexState,
 } from "../api/types";
 import {
-  formatSrtTimestamp,
+  getKnowledgeEvidenceLocator,
   getSourceTypeLabel,
 } from "../utils/sourcePresentation";
 
@@ -76,27 +75,6 @@ function formatDuration(durationMs: number): string {
   }
 
   return `${durationFormatter.format(durationMs)} ms`;
-}
-
-function getEvidenceLocator(evidence: KnowledgeEvidence): string {
-  if (evidence.start_ms !== null && evidence.end_ms !== null) {
-    return `${formatSrtTimestamp(evidence.start_ms)} → ${formatSrtTimestamp(evidence.end_ms)}`;
-  }
-
-  if (
-    evidence.first_segment_index !== null &&
-    evidence.last_segment_index !== null
-  ) {
-    return evidence.first_segment_index === evidence.last_segment_index
-      ? `Segment #${evidence.first_segment_index}`
-      : `Segments #${evidence.first_segment_index} à #${evidence.last_segment_index}`;
-  }
-
-  if (evidence.char_start !== null && evidence.char_end !== null) {
-    return `Caractères ${evidence.char_start} à ${evidence.char_end}`;
-  }
-
-  return `Passage #${evidence.passage_index}`;
 }
 
 function canSearchIndex(
@@ -315,7 +293,7 @@ function RagKnowledgeCard({
 
         {primaryEvidence ? (
           <div className="semantic-result-evidence">
-            <strong>{getEvidenceLocator(primaryEvidence)}</strong>
+            <strong>{getKnowledgeEvidenceLocator(primaryEvidence)}</strong>
             <blockquote>{primaryEvidence.original_excerpt}</blockquote>
           </div>
         ) : null}

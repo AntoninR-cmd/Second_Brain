@@ -187,7 +187,10 @@ export function DashboardPage() {
               </svg>
             </div>
             <h3>Votre Second Brain est vide</h3>
-            <p>Ajoutez une note ou importez un fichier SRT ou TXT pour commencer.</p>
+            <p>
+              Ajoutez une note ou importez un fichier SRT, TXT, PDF ou EPUB pour
+              commencer.
+            </p>
             <Link className="button button-secondary" to="/ajouter">
               Ajouter une source
             </Link>

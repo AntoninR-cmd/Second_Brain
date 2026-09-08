@@ -4,6 +4,7 @@ import pytest
 from second_brain.pipeline.chunking import (
     ChunkingConfig,
     SourceSegmentInput,
+    chunk_document_segments,
     chunk_srt_segments,
     chunk_text,
     estimate_tokens,
@@ -122,6 +123,35 @@ def test_srt_segments_must_be_ordered_and_unique() -> None:
 
     with pytest.raises(ValueError, match="ordonnes"):
         chunk_srt_segments(segments)
+
+
+def test_document_chunking_keeps_page_or_chapter_as_a_provenance_boundary() -> None:
+    segments = [
+        SourceSegmentInput(1, "Première page. Une information courte."),
+        SourceSegmentInput(2, "Deuxième page. Une autre information courte."),
+    ]
+
+    chunks = chunk_document_segments(
+        segments,
+        ChunkingConfig(target_tokens=100, max_tokens=120),
+    )
+
+    assert [chunk.segment_indices for chunk in chunks] == [(1,), (2,)]
+    assert [chunk.index for chunk in chunks] == [0, 1]
+    assert chunks[0].text == segments[0].text
+    assert chunks[1].text == segments[1].text
+
+
+def test_document_chunking_reuses_sentence_aware_limits_for_a_long_chapter() -> None:
+    chapter = " ".join(f"Phrase {index} suffisamment détaillée." for index in range(40))
+    config = ChunkingConfig(target_tokens=30, max_tokens=40)
+
+    chunks = chunk_document_segments([SourceSegmentInput(7, chapter)], config)
+
+    assert len(chunks) > 1
+    assert all(chunk.token_count <= config.max_tokens for chunk in chunks)
+    assert all(chunk.segment_indices == (7,) for chunk in chunks)
+    assert " ".join(chunk.text for chunk in chunks) == chapter
 
 
 def test_token_estimate_is_empty_safe_and_monotonic() -> None:

@@ -5,7 +5,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, String, Text, Uuid, text
+from sqlalchemy import CheckConstraint, Integer, String, Text, Uuid, text
 from sqlalchemy import Enum as SqlEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -22,10 +22,13 @@ class SourceType(str, Enum):
     MANUAL = "manual"
     SRT = "srt"
     TXT = "txt"
+    PDF = "pdf"
+    EPUB = "epub"
 
 
 class ProcessingStatus(str, Enum):
     READY = "ready"
+    NEEDS_OCR = "needs_ocr"
 
 
 class AnalysisStatus(str, Enum):
@@ -40,12 +43,20 @@ class Source(Base):
     __tablename__ = "sources"
     __table_args__ = (
         CheckConstraint(
-            "type IN ('manual', 'srt', 'txt')",
+            "type IN ('manual', 'srt', 'txt', 'pdf', 'epub')",
             name="source_type",
         ),
         CheckConstraint(
-            "processing_status IN ('ready')",
+            "processing_status IN ('ready', 'needs_ocr')",
             name="processing_status",
+        ),
+        CheckConstraint(
+            "page_count IS NULL OR page_count >= 0",
+            name="ck_sources_page_count",
+        ),
+        CheckConstraint(
+            "chapter_count IS NULL OR chapter_count >= 0",
+            name="ck_sources_chapter_count",
         ),
         CheckConstraint(
             "analysis_status IN ('not_analyzed', 'queued', 'processing', 'analyzed', 'error')",
@@ -80,6 +91,10 @@ class Source(Base):
         index=True,
     )
     raw_text: Mapped[str] = mapped_column(Text, nullable=False)
+    processing_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    chapter_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    language: Mapped[str | None] = mapped_column(String(32), nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     processing_status: Mapped[ProcessingStatus] = mapped_column(
         SqlEnum(

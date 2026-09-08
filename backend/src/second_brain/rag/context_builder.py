@@ -132,6 +132,17 @@ def _evidence_locator(evidence: KnowledgeEvidence) -> str:
         start = _format_srt_timestamp(evidence.start_ms)
         end = _format_srt_timestamp(evidence.end_ms)
         return f"{start} --> {end}"
+    if evidence.page_number is not None:
+        if (
+            evidence.page_end_number is not None
+            and evidence.page_end_number != evidence.page_number
+        ):
+            return f"pages {evidence.page_number} à {evidence.page_end_number}"
+        return f"page {evidence.page_number}"
+    if evidence.chapter_title:
+        return f'chapitre "{evidence.chapter_title}"'
+    if evidence.chapter_index is not None:
+        return f"chapitre {evidence.chapter_index + 1}"
     if evidence.char_start is not None and evidence.char_end is not None:
         return f"caractères {evidence.char_start} à {evidence.char_end}"
     if evidence.passage is not None:

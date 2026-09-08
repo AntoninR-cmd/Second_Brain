@@ -3,8 +3,8 @@ export interface HealthResponse {
   database: "ok";
 }
 
-export type SourceType = "manual" | "srt" | "txt";
-export type ProcessingStatus = "ready";
+export type SourceType = "manual" | "srt" | "txt" | "pdf" | "epub";
+export type ProcessingStatus = "ready" | "needs_ocr";
 export type AnalysisStatus =
   | "not_analyzed"
   | "queued"
@@ -29,6 +29,10 @@ export interface SourceDetail extends SourceSummary {
   original_file_path: string | null;
   file_sha256: string | null;
   segment_count: number;
+  page_count: number | null;
+  chapter_count: number | null;
+  language: string | null;
+  processing_error: string | null;
   summary: string | null;
   analysis_error: string | null;
   analysis_started_at: string | null;
@@ -48,6 +52,9 @@ export interface SourceSegment {
   text: string;
   start_ms: number | null;
   end_ms: number | null;
+  page_number: number | null;
+  chapter_index: number | null;
+  chapter_title: string | null;
 }
 
 export interface SourceSegmentListResponse {
@@ -420,6 +427,10 @@ export interface KnowledgeEvidence {
   last_segment_index: number | null;
   char_start: number | null;
   char_end: number | null;
+  page_number: number | null;
+  page_end_number: number | null;
+  chapter_index: number | null;
+  chapter_title: string | null;
 }
 
 export interface KnowledgeNodeDetail extends KnowledgeNodeSummary {

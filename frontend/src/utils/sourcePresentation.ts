@@ -14,10 +14,13 @@ const SOURCE_TYPE_LABELS: Record<SourceType, string> = {
   manual: "Note manuelle",
   srt: "Sous-titres SRT",
   txt: "Fichier TXT",
+  pdf: "Document PDF",
+  epub: "Livre EPUB",
 };
 
 const PROCESSING_STATUS_LABELS: Record<ProcessingStatus, string> = {
   ready: "Prête",
+  needs_ocr: "OCR nécessaire",
 };
 
 const ANALYSIS_STATUS_LABELS: Record<AnalysisStatus, string> = {
@@ -59,10 +62,35 @@ export function getKnowledgeEvidenceLocator(
     | "char_start"
     | "char_end"
     | "passage_index"
+    | "page_number"
+    | "page_end_number"
+    | "chapter_index"
+    | "chapter_title"
   >,
 ): string {
   if (evidence.start_ms !== null && evidence.end_ms !== null) {
     return `${formatSrtTimestamp(evidence.start_ms)} → ${formatSrtTimestamp(evidence.end_ms)}`;
+  }
+
+  if (evidence.page_number !== null) {
+    return evidence.page_end_number !== null &&
+      evidence.page_end_number !== evidence.page_number
+      ? `Pages ${evidence.page_number} à ${evidence.page_end_number}`
+      : `Page ${evidence.page_number}`;
+  }
+
+  if (evidence.chapter_index !== null || evidence.chapter_title?.trim()) {
+    const chapterNumber =
+      evidence.chapter_index === null ? null : evidence.chapter_index + 1;
+    const chapterTitle = evidence.chapter_title?.trim() || null;
+
+    if (chapterNumber !== null && chapterTitle) {
+      return `Chapitre ${chapterNumber} · ${chapterTitle}`;
+    }
+    if (chapterNumber !== null) {
+      return `Chapitre ${chapterNumber}`;
+    }
+    return `Chapitre · ${chapterTitle}`;
   }
 
   if (

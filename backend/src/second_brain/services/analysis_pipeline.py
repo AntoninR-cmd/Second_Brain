@@ -16,7 +16,7 @@ from second_brain.core.config import Settings
 from second_brain.db.base import utc_now
 from second_brain.db.models.knowledge import KnowledgeEvidence, KnowledgeNode
 from second_brain.db.models.processing import ProcessingJob
-from second_brain.db.models.source import AnalysisStatus, Source, SourceType
+from second_brain.db.models.source import AnalysisStatus, ProcessingStatus, Source, SourceType
 from second_brain.db.models.source_passage import (
     SourcePassage,
     SourcePassageAnalysisStatus,
@@ -45,6 +45,7 @@ from second_brain.pipeline.chunking import (
     ChunkingConfig,
     SourceChunk,
     SourceSegmentInput,
+    chunk_document_segments,
     chunk_srt_segments,
     chunk_text,
     estimate_tokens,
@@ -88,6 +89,10 @@ class PassageContext:
     chunk: SourceChunk
     first_segment_id: UUID | None
     last_segment_id: UUID | None
+    page_number: int | None = None
+    page_end_number: int | None = None
+    chapter_index: int | None = None
+    chapter_title: str | None = None
 
 
 @dataclass(slots=True)
@@ -268,6 +273,12 @@ class AnalysisPipeline:
             )
             if source is None:
                 raise AnalysisPipelineError("La source à analyser n'existe plus.")
+            if source.processing_status == ProcessingStatus.NEEDS_OCR:
+                raise AnalysisPipelineError(
+                    source.processing_error
+                    or "Ce PDF semble nécessiter une reconnaissance OCR, non disponible "
+                    "dans cette version."
+                )
 
             existing = await self._load_passage_contexts(session, source_id)
             if existing:
@@ -283,6 +294,15 @@ class AnalysisPipeline:
                             end_ms=segment.end_ms,
                         )
                         for segment in source.segments
+                    ],
+                    self._chunking,
+                )
+            elif source.type in {SourceType.PDF, SourceType.EPUB}:
+                chunks = chunk_document_segments(
+                    [
+                        SourceSegmentInput(index=segment.index, text=segment.text)
+                        for segment in source.segments
+                        if segment.text.strip()
                     ],
                     self._chunking,
                 )
@@ -310,7 +330,7 @@ class AnalysisPipeline:
                     segment = segments_by_index.get(segment_index)
                     if segment is None:
                         raise AnalysisPipelineError(
-                            "Un passage SRT référence un segment source introuvable."
+                            "Un passage structuré référence un segment source introuvable."
                         )
                     passage.segment_links.append(
                         SourcePassageSegment(segment_id=segment.id, position=position)
@@ -349,6 +369,11 @@ class AnalysisPipeline:
             segments = [link.segment for link in passage.segment_links]
             starts = [segment.start_ms for segment in segments if segment.start_ms is not None]
             ends = [segment.end_ms for segment in segments if segment.end_ms is not None]
+            pages = [segment.page_number for segment in segments if segment.page_number is not None]
+            chapter = next(
+                (segment for segment in segments if segment.chapter_index is not None),
+                None,
+            )
             contexts.append(
                 PassageContext(
                     id=passage.id,
@@ -364,6 +389,10 @@ class AnalysisPipeline:
                     ),
                     first_segment_id=segments[0].id if segments else None,
                     last_segment_id=segments[-1].id if segments else None,
+                    page_number=min(pages) if pages else None,
+                    page_end_number=max(pages) if pages else None,
+                    chapter_index=chapter.chapter_index if chapter is not None else None,
+                    chapter_title=chapter.chapter_title if chapter is not None else None,
                 )
             )
         return contexts
@@ -772,6 +801,10 @@ class AnalysisPipeline:
                             end_ms=passage.chunk.end_ms,
                             char_start=passage.chunk.char_start,
                             char_end=passage.chunk.char_end,
+                            page_number=passage.page_number,
+                            page_end_number=passage.page_end_number,
+                            chapter_index=passage.chapter_index,
+                            chapter_title=passage.chapter_title,
                         )
                     )
 
